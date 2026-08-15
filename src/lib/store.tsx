@@ -1,5 +1,18 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Question, Assessment, CCEMark, CampusSettings, SubjectConfig } from '../types';
+import { db } from './firebase';
+import { 
+  collection, 
+  doc, 
+  setDoc, 
+  onSnapshot, 
+  query, 
+  deleteDoc, 
+  writeBatch,
+  getDocs,
+  limit
+} from 'firebase/firestore';
+import { useCollectionData } from 'react-firebase-hooks/firestore';
 
 interface DatabaseState {
   settings: CampusSettings;
@@ -20,6 +33,9 @@ interface AuthState {
 }
 
 interface DatabaseContextType extends DatabaseState, AuthState {
+  loading: boolean;
+  syncStatus: 'synced' | 'syncing' | 'offline';
+  forceCloudRefresh: () => Promise<void>;
   updateSettings: (settings: Partial<CampusSettings>) => void;
   addQuestion: (q: Omit<Question, 'id'>) => void;
   deleteQuestion: (id: string) => void;
@@ -36,8 +52,8 @@ interface DatabaseContextType extends DatabaseState, AuthState {
 }
 
 const defaultSettings: CampusSettings = {
-  name: "Darul Huda Punganur",
-  logoUrl: "/src/assets/images/darul_huda_logo_1786782663440.jpg",
+  name: "Grand Campus Assurance Portal",
+  logoUrl: "/favicon.png",
   assessmentsActive: true,
   reportCardsActive: false,
   academicYear: "2026-2027",
@@ -116,55 +132,15 @@ const defaultSubjects: SubjectConfig[] = [
 const StoreContext = createContext<DatabaseContextType | undefined>(undefined);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const [data, setData] = useState<DatabaseState>(() => {
-    const saved = localStorage.getItem('campus_db');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      // Migrate old data
-      if (parsed.examMarks) {
-        parsed.cceMarks = parsed.examMarks.map((m: any) => ({
-          ...m,
-          score: m.percentage,
-          maxScore: 100,
-          date: new Date().toISOString()
-        }));
-        delete parsed.examMarks;
-      }
-      if (!parsed.settings) {
-        parsed.settings = defaultSettings;
-      }
-      if (parsed.settings && parsed.settings.assessmentFields) {
-        // Simple migration of fields
-        parsed.settings.spiritualFields = parsed.settings.spiritualFields || ['Prayers', 'Compassion'];
-        parsed.settings.behaviouralFields = parsed.settings.behaviouralFields || ['Discipline', 'Collaboration'];
-        delete parsed.settings.assessmentFields;
-      }
-      if (!parsed.subjects) {
-        parsed.subjects = defaultSubjects;
-      }
-      // Migrate questions
-      if (parsed.questions && parsed.questions.length > 0 && typeof parsed.questions[0].category === 'string') {
-        parsed.questions = parsed.questions.map((q: any) => {
-          if (q.category === 'Spiritual Wellbeing' || q.category === 'spiritual') {
-            return { ...q, category: 'spiritual', field: q.field || 'General' };
-          }
-          if (q.category === 'Behavioural Conduct' || q.category === 'behavioural') {
-            return { ...q, category: 'behavioural', field: q.field || 'General' };
-          }
-          return { ...q, category: 'behavioural', field: q.category }; // Fallback
-        });
-      }
-      return parsed;
-    }
-    return {
-      settings: defaultSettings,
-      users: defaultUsers,
-      questions: defaultQuestions,
-      assessments: [],
-      cceMarks: [],
-      subjects: defaultSubjects,
-    };
-  });
+  // Use React-Firebase-Hooks for real-time data
+  const [users, loadingUsers] = useCollectionData<User>(collection(db, 'users') as any);
+  const [questions, loadingQuestions] = useCollectionData<Question>(collection(db, 'questions') as any);
+  const [assessments, loadingAssessments] = useCollectionData<Assessment>(collection(db, 'assessments') as any);
+  const [cceMarks, loadingMarks] = useCollectionData<CCEMark>(collection(db, 'cceMarks') as any);
+  const [subjects, loadingSubjects] = useCollectionData<SubjectConfig>(collection(db, 'subjects') as any);
+  
+  const [settings, setSettings] = useState<CampusSettings>(defaultSettings);
+  const [loadingSettings, setLoadingSettings] = useState(true);
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('campus_auth');
@@ -178,9 +154,76 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return null;
   });
 
+  // Load settings separately as it's a single document
   useEffect(() => {
-    localStorage.setItem('campus_db', JSON.stringify(data));
-  }, [data]);
+    const settingsRef = doc(db, 'settings', 'global');
+    const unsub = onSnapshot(settingsRef, (snapshot) => {
+      if (snapshot.exists()) {
+        setSettings(snapshot.data() as CampusSettings);
+      } else {
+        // Initialize settings if not exists
+        setDoc(settingsRef, defaultSettings);
+      }
+      setLoadingSettings(false);
+    });
+    return () => unsub();
+  }, []);
+
+  // One-time migration from LocalStorage to Firestore if Firestore is empty
+  useEffect(() => {
+    async function migrateIfNeeded() {
+      const usersSnapshot = await getDocs(query(collection(db, 'users'), limit(1)));
+      if (usersSnapshot.empty) {
+        console.log('Firestore is empty. Checking for migration data...');
+        const saved = localStorage.getItem('campus_db');
+        let initialData: DatabaseState;
+
+        if (saved) {
+          initialData = JSON.parse(saved);
+        } else {
+          initialData = {
+            settings: defaultSettings,
+            users: defaultUsers,
+            questions: defaultQuestions,
+            assessments: [],
+            cceMarks: [],
+            subjects: defaultSubjects,
+          };
+        }
+
+        const batch = writeBatch(db);
+        
+        initialData.users.forEach(u => batch.set(doc(db, 'users', u.id), u));
+        initialData.questions.forEach(q => batch.set(doc(db, 'questions', q.id), q));
+        initialData.subjects.forEach(s => batch.set(doc(db, 'subjects', s.id), s));
+        initialData.assessments.forEach(a => batch.set(doc(db, 'assessments', a.id), a));
+        initialData.cceMarks.forEach(m => batch.set(doc(db, 'cceMarks', m.id), m));
+        batch.set(doc(db, 'settings', 'global'), initialData.settings);
+
+        await batch.commit();
+        console.log('Migration to Firestore complete.');
+      }
+    }
+    
+    if (!loadingSettings) {
+      migrateIfNeeded();
+    }
+  }, [loadingSettings]);
+
+  const loading = loadingUsers || loadingQuestions || loadingAssessments || loadingMarks || loadingSubjects || loadingSettings;
+  const syncStatus = loading ? 'syncing' : (navigator.onLine ? 'synced' : 'offline');
+
+  const forceCloudRefresh = async () => {
+    // This will trigger the service worker to clear caches and the page to reload
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (let registration of registrations) {
+        await registration.unregister();
+      }
+    }
+    localStorage.removeItem('campus_db'); // Clear local migration cache if any
+    window.location.reload();
+  };
 
   useEffect(() => {
     if (currentUser) {
@@ -199,7 +242,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [originalAdminId]);
 
   const login = (userId: string) => {
-    const user = data.users.find((u) => u.id === userId);
+    const user = users?.find((u) => u.id === userId);
     if (user) setCurrentUser(user);
   };
 
@@ -211,107 +254,134 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const impersonate = (userId: string) => {
     if (currentUser?.role === 'admin') {
       setOriginalAdminId(currentUser.id);
-      const targetUser = data.users.find((u) => u.id === userId);
+      const targetUser = users?.find((u) => u.id === userId);
       if (targetUser) setCurrentUser(targetUser);
     }
   };
 
   const stopImpersonating = () => {
     if (originalAdminId) {
-      const admin = data.users.find((u) => u.id === originalAdminId);
+      const admin = users?.find((u) => u.id === originalAdminId);
       if (admin) setCurrentUser(admin);
       setOriginalAdminId(null);
     }
   };
 
   const addUser = (u: Omit<User, 'id'>) => {
-    const newUser = { ...u, id: `${u.role}_${Date.now()}` };
-    setData((prev) => ({ ...prev, users: [...prev.users, newUser] }));
+    const id = `${u.role}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+    setDoc(doc(db, 'users', id), { ...u, id });
   };
 
-  const addUsers = (newUsersList: Omit<User, 'id'>[]) => {
-    const newUsers = newUsersList.map((u, i) => ({ ...u, id: `${u.role}_${Date.now()}_${i}` }));
-    setData((prev) => ({ ...prev, users: [...prev.users, ...newUsers] }));
+  const addUsers = async (newUsersList: Omit<User, 'id'>[]) => {
+    const batch = writeBatch(db);
+    newUsersList.forEach((u, i) => {
+      const id = `${u.role}_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 5)}`;
+      batch.set(doc(db, 'users', id), { ...u, id });
+    });
+    await batch.commit();
   };
 
   const updateUser = (userId: string, updates: Partial<User>) => {
-    setData(prev => ({
-      ...prev,
-      users: prev.users.map(u => u.id === userId ? { ...u, ...updates } : u)
-    }));
+    const userRef = doc(db, 'users', userId);
+    setDoc(userRef, updates, { merge: true });
+    
+    // Update current user if it's the one being updated
+    if (currentUser?.id === userId) {
+      setCurrentUser(prev => prev ? { ...prev, ...updates } : null);
+    }
   };
 
-  const deleteUsers = (userIds: string[]) => {
-    setData((prev) => ({ ...prev, users: prev.users.filter(u => !userIds.includes(u.id)) }));
+  const deleteUsers = async (userIds: string[]) => {
+    const batch = writeBatch(db);
+    userIds.forEach(id => batch.delete(doc(db, 'users', id)));
+    await batch.commit();
   };
 
   const updateSettings = (updates: Partial<CampusSettings>) => {
-    setData(prev => ({
-      ...prev,
-      settings: { ...prev.settings, ...updates }
-    }));
+    setDoc(doc(db, 'settings', 'global'), updates, { merge: true });
   };
 
   const addQuestion = (q: Omit<Question, 'id'>) => {
-    const newQ = { ...q, id: `q${Date.now()}` };
-    setData((prev) => ({ ...prev, questions: [...prev.questions, newQ] }));
+    const id = `q${Date.now()}`;
+    setDoc(doc(db, 'questions', id), { ...q, id });
   };
 
   const deleteQuestion = (id: string) => {
-    setData((prev) => ({ ...prev, questions: prev.questions.filter((q) => q.id !== id) }));
+    deleteDoc(doc(db, 'questions', id));
   };
 
   const addSubject = (s: Omit<SubjectConfig, 'id'>) => {
-    const newS = { ...s, id: `sub${Date.now()}` };
-    setData((prev) => ({ ...prev, subjects: [...prev.subjects || [], newS] }));
+    const id = `sub${Date.now()}`;
+    setDoc(doc(db, 'subjects', id), { ...s, id });
   };
 
-  const addSubjects = (newSubjectsList: Omit<SubjectConfig, 'id'>[]) => {
-    const newSubjects = newSubjectsList.map((s, i) => ({ ...s, id: `sub${Date.now()}_${i}` }));
-    setData((prev) => ({ ...prev, subjects: [...prev.subjects || [], ...newSubjects] }));
+  const addSubjects = async (newSubjectsList: Omit<SubjectConfig, 'id'>[]) => {
+    const batch = writeBatch(db);
+    newSubjectsList.forEach((s, i) => {
+      const id = `sub${Date.now()}_${i}`;
+      batch.set(doc(db, 'subjects', id), { ...s, id });
+    });
+    await batch.commit();
   };
 
   const deleteSubject = (id: string) => {
-    setData((prev) => ({ ...prev, subjects: (prev.subjects || []).filter((s) => s.id !== id) }));
+    deleteDoc(doc(db, 'subjects', id));
   };
 
   const addAssessment = (a: Omit<Assessment, 'id' | 'date'>) => {
-    const newA = { ...a, id: `a${Date.now()}`, date: new Date().toISOString() };
-    setData((prev) => {
-      // Remove previous assessment from the same assessor for the same student and category
-      const filtered = prev.assessments.filter(
-        (existing) => 
-          !(existing.studentId === a.studentId && 
-            existing.assessorId === a.assessorId && 
-            existing.category === a.category)
-      );
-      return { ...prev, assessments: [...filtered, newA] };
-    });
+    const id = `a${Date.now()}`;
+    const newA = { ...a, id, date: new Date().toISOString() };
+    
+    // In Firestore, we don't necessarily need to "delete" first if we use structured IDs, 
+    // but the current logic replaces. We can just use a calculated ID to overwrite or just add.
+    // For consistency with existing behavior:
+    const existing = assessments?.find(
+      (existing) => 
+        existing.studentId === a.studentId && 
+        existing.assessorId === a.assessorId && 
+        existing.category === a.category
+    );
+    
+    if (existing) {
+      deleteDoc(doc(db, 'assessments', existing.id));
+    }
+    setDoc(doc(db, 'assessments', id), newA);
   };
 
-  const addCCEMarks = (marks: Omit<CCEMark, 'id'>[]) => {
-    // Delete existing marks for these students/subjects/levels/months before adding
-    setData((prev) => {
-      let filteredMarks = [...prev.cceMarks];
-      for (const m of marks) {
-        filteredMarks = filteredMarks.filter(existing => 
-          !(existing.studentId === m.studentId && existing.subject === m.subject && existing.cceLevel === m.cceLevel && existing.month === m.month)
-        );
+  const addCCEMarks = async (marks: Omit<CCEMark, 'id'>[]) => {
+    const batch = writeBatch(db);
+    
+    // Find duplicates in local state to delete from Firestore
+    marks.forEach(m => {
+      const existing = cceMarks?.find(e => 
+        e.studentId === m.studentId && e.subject === m.subject && e.cceLevel === m.cceLevel && e.month === m.month
+      );
+      if (existing) {
+        batch.delete(doc(db, 'cceMarks', existing.id));
       }
-      
-      const newMarks = marks.map((m, i) => ({ ...m, id: `m${Date.now()}_${i}` }));
-      return { ...prev, cceMarks: [...filteredMarks, ...newMarks] };
+      const id = `m${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      batch.set(doc(db, 'cceMarks', id), { ...m, id });
     });
+    
+    await batch.commit();
   };
 
   const deleteCCEMark = (id: string) => {
-    setData((prev) => ({ ...prev, cceMarks: prev.cceMarks.filter((m) => m.id !== id) }));
+    deleteDoc(doc(db, 'cceMarks', id));
   };
 
   return (
     <StoreContext.Provider
       value={{
-        ...data,
+        settings,
+        users: users || [],
+        questions: questions || [],
+        assessments: assessments || [],
+        cceMarks: cceMarks || [],
+        subjects: subjects || [],
+        loading,
+        syncStatus,
+        forceCloudRefresh,
         currentUser,
         originalAdminId,
         login,

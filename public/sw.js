@@ -3,10 +3,17 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(clients.claim());
+  event.waitUntil(
+    Promise.all([
+      self.clients.claim(),
+      // Clear old caches to ensure Firebase version is loaded
+      caches.keys().then((names) => {
+        for (let name of names) caches.delete(name);
+      })
+    ])
+  );
 });
 
 self.addEventListener('fetch', (event) => {
-  // Pass-through fetch handler needed for PWA installability
   event.respondWith(fetch(event.request));
 });

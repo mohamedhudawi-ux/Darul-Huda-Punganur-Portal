@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../../lib/store';
-import { LogOut, LayoutDashboard, Settings, FileText, CheckSquare, ChevronDown, Download, Menu, X, Smartphone, Sparkles } from 'lucide-react';
+import { LogOut, LayoutDashboard, Settings, FileText, CheckSquare, ChevronDown, Download, Menu, X, Smartphone, Sparkles, Cloud, CloudOff, RefreshCw } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { InstallModal } from './InstallModal';
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const { currentUser, logout, originalAdminId, stopImpersonating, settings } = useStore();
+  const { currentUser, logout, originalAdminId, stopImpersonating, settings, syncStatus, forceCloudRefresh } = useStore();
   const navigate = useNavigate();
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -144,6 +144,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </span>
           </button>
 
+          <button 
+            onClick={() => {
+              if (confirm('This will clear local data and re-sync from the cloud. Proceed?')) {
+                forceCloudRefresh();
+              }
+            }}
+            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl text-xs font-bold transition-all"
+          >
+            <div className="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center">
+              <RefreshCw className="w-3.5 h-3.5" />
+            </div>
+            Force Cloud Refresh
+          </button>
+
         </div>
       </aside>
 
@@ -170,6 +184,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
           
           <div className="flex items-center gap-3">
+            <div className="hidden md:flex items-center gap-2 px-2 py-1 rounded-full bg-slate-50 border border-slate-100">
+              {syncStatus === 'synced' ? (
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 uppercase tracking-tight">
+                  <Cloud className="w-3 h-3" /> Cloud Synced
+                </div>
+              ) : syncStatus === 'syncing' ? (
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-blue-600 uppercase tracking-tight animate-pulse">
+                  <RefreshCw className="w-3 h-3 animate-spin" /> Syncing...
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-rose-600 uppercase tracking-tight">
+                  <CloudOff className="w-3 h-3" /> Offline
+                </div>
+              )}
+            </div>
+
             <button
               onClick={handleInstallClick}
               className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-xs font-bold transition-colors"

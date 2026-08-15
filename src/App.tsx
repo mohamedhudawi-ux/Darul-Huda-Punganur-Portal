@@ -28,7 +28,18 @@ function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode,
 }
 
 function AppRoutes() {
-  const { currentUser } = useStore();
+  const { currentUser, loading } = useStore();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-slate-600 font-medium animate-pulse">Connecting to Grand Campus Cloud...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Routes>
