@@ -1,0 +1,6 @@
+{
+  "name": "Grand Campus Assurance Portal",
+  "description": "A comprehensive student report card and assurance portal for managing behavioural conduct, spiritual wellbeing, and exam performance.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
