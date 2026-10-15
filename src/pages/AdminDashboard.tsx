@@ -564,17 +564,15 @@ export default function AdminDashboard() {
 
   const isFilterOrSearchActive = dirSearchQuery.trim() !== '' || dirClassFilter !== '' || dirSectionFilter !== '' || dirRoleFilter !== 'all';
 
-  const visibleUsers = isFilterOrSearchActive 
-    ? allVisibleUsers.filter(u => {
-        const matchesSearch = dirSearchQuery === '' || 
-          (u.name || '').toLowerCase().includes(dirSearchQuery.toLowerCase()) || 
-          (u.admissionNumber && (u.admissionNumber || '').toLowerCase().includes(dirSearchQuery.toLowerCase()));
-        const matchesClass = dirClassFilter === '' || u.classGrade === dirClassFilter;
-        const matchesSection = dirSectionFilter === '' || u.section === dirSectionFilter;
-        const matchesRole = dirRoleFilter === 'all' || u.role === dirRoleFilter;
-        return matchesSearch && matchesClass && matchesSection && matchesRole;
-      })
-    : [];
+  const visibleUsers = allVisibleUsers.filter(u => {
+    const matchesSearch = dirSearchQuery === '' || 
+      (u.name || '').toLowerCase().includes(dirSearchQuery.toLowerCase()) || 
+      (u.admissionNumber && (u.admissionNumber || '').toLowerCase().includes(dirSearchQuery.toLowerCase()));
+    const matchesClass = dirClassFilter === '' || u.classGrade === dirClassFilter;
+    const matchesSection = dirSectionFilter === '' || u.section === dirSectionFilter;
+    const matchesRole = dirRoleFilter === 'all' || u.role === dirRoleFilter;
+    return matchesSearch && matchesClass && matchesSection && matchesRole;
+  });
   
   const handleToggleUserSelection = (userId: string) => {
     const newSelection = new Set(selectedUserIds);
