@@ -1,0 +1,26 @@
+import type { CapacitorConfig } from '@capacitor/cli';
+
+const config: CapacitorConfig = {
+  appId: 'com.grandcampus.assurance',
+  appName: 'Grand Campus Assurance',
+  webDir: 'dist',
+  server: {
+    androidScheme: 'https'
+  },
+  plugins: {
+    SplashScreen: {
+      launchShowDuration: 2000,
+      backgroundColor: '#0f172a',
+      showSpinner: false,
+      androidSpinnerStyle: 'large',
+      splashFullScreen: true,
+      splashImmersive: true
+    },
+    StatusBar: {
+      style: 'DARK',
+      backgroundColor: '#0f172a'
+    }
+  }
+};
+
+export default config;

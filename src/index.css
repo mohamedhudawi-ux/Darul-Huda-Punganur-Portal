@@ -1,14 +1,105 @@
 @import "tailwindcss";
 
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap');
+
+@page {
+  size: A4 portrait;
+  margin: 5mm;
+}
+
+@page landscape-page {
+  size: A4 landscape;
+  margin: 5mm;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  @apply text-slate-900 bg-slate-50/50;
+}
+
 @media print {
-  @page {
-    size: A4 portrait;
-    margin: 10mm;
+  .class-report-print {
+    page: landscape-page;
+    
+    table {
+      table-layout: auto !important;
+      font-size: 7px !important;
+    }
+
+    th, td {
+      padding: 2px 3px !important;
+      font-size: 7px !important;
+      line-height: 1 !important;
+    }
   }
   
   html, body {
-    width: 210mm;
-    height: 297mm;
-    background: white;
+    width: 100% !important;
+    height: auto !important;
+    background: white !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    font-size: 12px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Specifically show the report container and ensure it doesn't hide content */
+  .print-report-container {
+    display: block !important;
+    visibility: visible !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    position: static !important;
+    background: white !important;
+    box-shadow: none !important;
+    border: none !important;
+    overflow: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    table-layout: auto !important;
+  }
+
+  th, td {
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+    border: 1px solid #e2e8f0 !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+
+  th {
+    background-color: #f8fafc !important;
+    color: #0f172a !important;
+    font-weight: 900 !important;
+    font-size: 13px !important;
+  }
+
+  .print\:hidden {
+    display: none !important;
+  }
+
+  .print\:block {
+    display: block !important;
+  }
+
+  .print\:flex {
+    display: flex !important;
+  }
+
+  .print\:overflow-visible {
+    overflow: visible !important;
+  }
+
+  /* Ensure no breaks inside important sections */
+  .break-inside-avoid {
+    break-inside: avoid !important;
   }
 }

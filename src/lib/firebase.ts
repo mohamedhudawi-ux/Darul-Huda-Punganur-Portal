@@ -1,4 +1,4 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import config from '../../firebase-applet-config.json';
@@ -12,6 +12,10 @@ const firebaseConfig = {
   appId: config.appId,
 };
 
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+// Initialize Firebase only if no apps exist
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+
+// Use getFirestore with the configured database ID
+export const db = getFirestore(app, config.firestoreDatabaseId);
+
 export const auth = getAuth(app);

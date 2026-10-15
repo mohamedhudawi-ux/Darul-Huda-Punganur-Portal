@@ -64,7 +64,7 @@ export function ProgressChart({ studentId }: ProgressChartProps) {
     if (!marksByPeriod[period]) {
       marksByPeriod[period] = { totalScore: 0, totalMax: 0, latestDate: new Date(m.date) };
     }
-    marksByPeriod[period].totalScore += m.score;
+    marksByPeriod[period].totalScore += (m.score === 'Ab' ? 0 : Number(m.score) || 0);
     marksByPeriod[period].totalMax += m.maxScore;
     const mDate = new Date(m.date);
     if (mDate > marksByPeriod[period].latestDate) {

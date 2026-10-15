@@ -1,12 +1,12 @@
 {
-  "projectId": "profound-beaker-1f6jr",
-  "appId": "1:61636878819:web:4fe16bce9f76865e9e00d6",
-  "apiKey": "AIzaSyDGZu2OcrEM8vWKNphbqEf_l_1Q6qHSB5w",
-  "authDomain": "profound-beaker-1f6jr.firebaseapp.com",
+  "projectId": "dh-assurance-portal",
+  "appId": "1:889622054094:web:567ab9c15f5fe7346dfc9f",
+  "apiKey": "AIzaSyAxBDplwChGGsXDzSC7-V2Tc3OuyEp-B5E",
+  "authDomain": "dh-assurance-portal.firebaseapp.com",
   "firestoreDatabaseId": "ai-studio-grandcampusassur-c1295b4f-08bf-4cc0-9781-82e9af312d06",
-  "storageBucket": "profound-beaker-1f6jr.firebasestorage.app",
-  "messagingSenderId": "61636878819",
+  "storageBucket": "dh-assurance-portal.firebasestorage.app",
+  "messagingSenderId": "889622054094",
   "measurementId": "",
-  "oAuthClientId": "61636878819-vtir2g94qb8003vdfle79dsrfi6hjj75.apps.googleusercontent.com",
+  "oAuthClientId": "889622054094-tcv7o2vhgprrn4j0ci07r46va2pk55v4.apps.googleusercontent.com",
   "recaptchaSiteKey": ""
 }

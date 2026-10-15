@@ -1,0 +1,160 @@
+{
+  "entities": {
+    "assessment": {
+      "title": "Assessment",
+      "description": "An assessment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "user": {
+      "title": "User",
+      "description": "A user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" }
+      },
+      "required": ["id", "email"]
+    },
+    "assessmentLog": {
+      "title": "AssessmentLog",
+      "description": "An assessment log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "assessmentId": { "type": "string" }
+      },
+      "required": ["id", "assessmentId"]
+    },
+    "mentorInsight": {
+      "title": "MentorInsight",
+      "description": "A mentor insight",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "mentorId": { "type": "string" }
+      },
+      "required": ["id", "mentorId"]
+    },
+    "subject": {
+      "title": "Subject",
+      "description": "A subject",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "setting": {
+      "title": "Setting",
+      "description": "A setting",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "key": { "type": "string" }
+      },
+      "required": ["id", "key"]
+    },
+    "question": {
+      "title": "Question",
+      "description": "A question",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "text": { "type": "string" }
+      },
+      "required": ["id", "text"]
+    },
+    "cceMark": {
+      "title": "CCE Mark",
+      "description": "A CCE mark",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "mark": { "type": "number" }
+      },
+      "required": ["id", "mark"]
+    },
+    "skillClubMark": {
+      "title": "Skill Club Mark",
+      "description": "A skill club mark",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" }
+      },
+      "required": ["id", "studentId"]
+    },
+    "taskTemplate": {
+      "title": "Task Template",
+      "description": "A task template",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" }
+      },
+      "required": ["id", "title"]
+    },
+    "studentTask": {
+      "title": "Student Task",
+      "description": "A student task",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" }
+      },
+      "required": ["id", "studentId"]
+    }
+  },
+  "firestore": {
+    "assessments/{assessmentId}": {
+      "schema": "assessment",
+      "description": "Assessments collection"
+    },
+    "users/{userId}": {
+      "schema": "user",
+      "description": "Users collection"
+    },
+    "assessmentLogs/{logId}": {
+      "schema": "assessmentLog",
+      "description": "AssessmentLogs collection"
+    },
+    "mentorInsights/{insightId}": {
+      "schema": "mentorInsight",
+      "description": "MentorInsights collection"
+    },
+    "subjects/{subjectId}": {
+      "schema": "subject",
+      "description": "Subjects collection"
+    },
+    "settings/{settingId}": {
+      "schema": "setting",
+      "description": "Settings collection"
+    },
+    "questions/{questionId}": {
+      "schema": "question",
+      "description": "Questions collection"
+    },
+    "cceMarks/{markId}": {
+      "schema": "cceMark",
+      "description": "CCEMarks collection"
+    },
+    "skillClubMarks/{markId}": {
+      "schema": "skillClubMark",
+      "description": "SkillClubMarks collection"
+    },
+    "taskTemplates/{templateId}": {
+      "schema": "taskTemplate",
+      "description": "TaskTemplates collection"
+    },
+    "studentTasks/{taskId}": {
+      "schema": "studentTask",
+      "description": "StudentTasks collection"
+    }
+  }
+}

@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../../lib/store';
-import { LogOut, LayoutDashboard, Settings, FileText, CheckSquare, ChevronDown, Download, Menu, X, Smartphone, Sparkles, Cloud, CloudOff, RefreshCw } from 'lucide-react';
+import { LogOut, LayoutDashboard, Settings, FileText, CheckSquare, ChevronDown, Download, Menu, X, Smartphone, Sparkles, Cloud, CloudOff, RefreshCw, Users, BookOpen, Printer, History, HelpCircle, Play, ChevronRight, GraduationCap, Trophy, ShieldCheck } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { InstallModal } from './InstallModal';
+import { motion, AnimatePresence } from 'motion/react';
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const { currentUser, logout, originalAdminId, stopImpersonating, settings, syncStatus, forceCloudRefresh } = useStore();
+  const { currentUser, logout, originalAdminId, stopImpersonating, settings, syncStatus, forceCloudRefresh, lastSyncTime, users } = useStore();
   const navigate = useNavigate();
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
+
+  const originalAdmin = users?.find(u => u.id === originalAdminId);
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: any) => {
@@ -44,21 +47,32 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const handleReturnToAdmin = () => {
     stopImpersonating();
-    navigate('/admin');
+    // Use a small delay to ensure state has started transitioning
+    setTimeout(() => {
+      navigate('/admin');
+    }, 10);
   };
 
   const NavItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: string }) => {
-    const isActive = location.pathname.startsWith(to);
+    const fullPath = location.pathname + location.search;
+    const isActive = fullPath === to || (to === '/admin' && fullPath.startsWith('/admin?')) || (to === '/teacher' && fullPath.startsWith('/teacher')) || (to === '/student' && fullPath.startsWith('/student'));
+    
+    // For admin, if we are on /admin without a tab, the first item should be active if it matches the default
+    const isActuallyActive = isActive || (to === '/admin?tab=users' && fullPath === '/admin');
+
     return (
       <button 
         onClick={() => {
           navigate(to);
           setIsSidebarOpen(false);
         }} 
-        className={`w-full flex items-center px-4 py-3 rounded-lg font-bold text-sm transition-all mb-1 ${isActive ? 'bg-amber-500 text-slate-900 shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}
+        className={`group w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm transition-all mb-1 ${isActuallyActive ? 'bg-amber-500 text-slate-900 shadow-lg shadow-amber-500/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
       >
-        <Icon className={`w-5 h-5 mr-3 ${isActive ? 'text-slate-900' : 'text-slate-400'}`} />
-        {label}
+        <div className="flex items-center">
+          <Icon className={`w-5 h-5 mr-3 transition-transform group-hover:scale-110 ${isActuallyActive ? 'text-slate-900' : 'text-slate-500'}`} />
+          {label}
+        </div>
+        {isActuallyActive && <motion.div layoutId="nav-indicator"><ChevronRight className="w-4 h-4 opacity-50" /></motion.div>}
       </button>
     );
   };
@@ -109,13 +123,50 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <NavItem to={`/${currentUser.role}`} icon={LayoutDashboard} label="Dashboard" />
               
               {currentUser.role === 'admin' && (
-                <NavItem to="/admin" icon={Settings} label="Campus Management" />
+                <>
+                  <div className="pt-4 pb-2 px-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Management</div>
+                  <NavItem to="/admin?tab=users" icon={Users} label="User Directory" />
+                  <NavItem to="/admin?tab=assessments" icon={CheckSquare} label="Assessment Setup" />
+                  <NavItem to="/admin?tab=cce" icon={BookOpen} label="CCE Marks Entry" />
+                  <NavItem to="/admin?tab=activities" icon={Trophy} label="Activity Center" />
+                  <NavItem to="/admin?tab=reports" icon={Printer} label="Class Reports" />
+                  <NavItem to="/admin?tab=mentors" icon={GraduationCap} label="Mentor Assignment" />
+                  
+                  <div className="pt-4 pb-2 px-4 text-[10px] font-black uppercase tracking-widest text-slate-500">System</div>
+                  <NavItem to="/admin?tab=logs" icon={History} label="Assessment Logs" />
+                  <NavItem to="/admin?tab=settings" icon={Settings} label="Campus Settings" />
+                  <NavItem to="/admin?tab=help" icon={HelpCircle} label="Help & Tutorial" />
+                </>
               )}
               {currentUser.role === 'teacher' && (
-                <NavItem to="/teacher" icon={CheckSquare} label="Assessments & CCE" />
+                <>
+                  <div className="pt-4 pb-2 px-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Mentorship</div>
+                  <NavItem to="/teacher?tab=assessments" icon={CheckSquare} label="Assessment Grid" />
+                  <NavItem to="/teacher?tab=cce" icon={BookOpen} label="CCE Marks Entry" />
+                  <NavItem to="/teacher?tab=activities" icon={Trophy} label="Activity Center" />
+                  
+                  <div className="pt-4 pb-2 px-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Resources</div>
+                  <NavItem to="/teacher?tab=help" icon={HelpCircle} label="Help & FAQ" />
+                </>
               )}
               {currentUser.role === 'student' && (
-                <NavItem to="/student" icon={FileText} label="My Portal" />
+                <>
+                  <div className="pt-4 pb-2 px-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Learning</div>
+                  <NavItem to="/student?tab=report" icon={FileText} label="My Report Card" />
+                  <NavItem to="/student?tab=spiritual" icon={Sparkles} label="Self-Assessment" />
+                </>
+              )}
+
+              {originalAdminId && (
+                <div className="mt-6 pt-6 border-t border-slate-800">
+                  <button 
+                    onClick={handleReturnToAdmin}
+                    className="w-full flex items-center px-4 py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl font-black text-sm transition-all shadow-lg shadow-amber-500/20"
+                  >
+                    <ShieldCheck className="w-5 h-5 mr-3" />
+                    Return to Admin
+                  </button>
+                </div>
               )}
             </nav>
           ) : (
@@ -184,19 +235,24 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
           
           <div className="flex items-center gap-3">
-            <div className="hidden md:flex items-center gap-2 px-2 py-1 rounded-full bg-slate-50 border border-slate-100">
-              {syncStatus === 'synced' ? (
-                <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 uppercase tracking-tight">
-                  <Cloud className="w-3 h-3" /> Cloud Synced
-                </div>
-              ) : syncStatus === 'syncing' ? (
-                <div className="flex items-center gap-1.5 text-[10px] font-bold text-blue-600 uppercase tracking-tight animate-pulse">
-                  <RefreshCw className="w-3 h-3 animate-spin" /> Syncing...
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5 text-[10px] font-bold text-rose-600 uppercase tracking-tight">
-                  <CloudOff className="w-3 h-3" /> Offline
-                </div>
+            <div className="hidden md:flex flex-col items-end">
+              <div className="flex items-center gap-2 px-2 py-1 rounded-full bg-slate-50 border border-slate-100">
+                {syncStatus === 'synced' ? (
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 uppercase tracking-tight">
+                    <Cloud className="w-3 h-3" /> Cloud Synced
+                  </div>
+                ) : syncStatus === 'syncing' ? (
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-blue-600 uppercase tracking-tight animate-pulse">
+                    <RefreshCw className="w-3 h-3 animate-spin" /> Syncing...
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-rose-600 uppercase tracking-tight">
+                    <CloudOff className="w-3 h-3" /> Offline
+                  </div>
+                )}
+              </div>
+              {lastSyncTime && (
+                <span className="text-[9px] text-slate-400 font-medium mt-0.5">Last update: {lastSyncTime}</span>
               )}
             </div>
 
@@ -225,7 +281,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         {originalAdminId && (
           <div className="bg-amber-500 text-amber-950 px-4 py-3 text-sm font-bold flex flex-col sm:flex-row gap-2 justify-between items-center shrink-0 z-20 print:hidden shadow-sm">
-            <span>Viewing portal as: {currentUser?.name} ({currentUser?.role})</span>
+            <span>Viewing portal as: {currentUser?.name} ({currentUser?.role}) | Admin: {originalAdmin?.name || 'Authorized'}</span>
             <button 
               onClick={handleReturnToAdmin} 
               className="bg-amber-950 text-amber-50 px-4 py-1.5 rounded-lg hover:bg-amber-900 transition-colors w-full sm:w-auto text-center"
@@ -235,8 +291,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        <main className="flex-1 w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 print:p-0 overflow-y-auto print:overflow-visible">
-          {children}
+        <main className={`flex-1 w-full ${location.pathname.includes('/report/') || (location.pathname.includes('/admin') && location.search.includes('tab=reports')) ? 'max-w-full' : 'max-w-7xl'} mx-auto p-4 sm:p-6 lg:p-8 print:p-0 overflow-y-auto print:overflow-visible`}>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={location.pathname + location.search}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              className="print:transform-none print:opacity-100"
+            >
+              {children}
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
     </div>
