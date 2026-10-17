@@ -7,8 +7,20 @@ import {
 } from 'lucide-react';
 import { CCEMark } from '../types';
 
+export const ALLOWED_CCE_LEVELS = ['CCE 1', 'CCE 2', 'CCE 3', 'CCE 4', 'Mid Term Exam'] as const;
+export type AllowedCCELevel = typeof ALLOWED_CCE_LEVELS[number];
+
+export function isMatchingCCELevel(cceLevel: string | undefined, target: string) {
+  if (!cceLevel) return false;
+  const a = cceLevel.trim().toLowerCase().replace(/[-_]/g, ' ');
+  const b = target.trim().toLowerCase().replace(/[-_]/g, ' ');
+  if (a === b) return true;
+  if ((a.includes('mid term') || a.includes('midterm')) && (b.includes('mid term') || b.includes('midterm'))) return true;
+  return false;
+}
+
 export function CCEMarksManager() {
-  const { users, subjects, cceMarks, addCCEMarks, deleteCCEMark } = useStore();
+  const { currentUser, users, subjects, cceMarks, addCCEMarks, deleteCCEMark } = useStore();
   
   // Selection filters
   const [cceClassFilters, setCceClassFilters] = useState({ 
@@ -17,15 +29,12 @@ export function CCEMarksManager() {
     subject: '' 
   });
 
-  // Active selected assessment name (e.g. 'CCE 1', 'CCE 2', 'Mid Term', or custom)
+  // Active selected assessment name (strictly CCE 1, CCE 2, CCE 3, CCE 4, or Mid Term Exam)
   const [selectedAssessment, setSelectedAssessment] = useState<string>('CCE 1');
-
-  // Locally added assessment names during this session
-  const [sessionAssessments, setSessionAssessments] = useState<string[]>([]);
 
   // Modal / dialog state for "+ Add Assessment"
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [newAssessmentName, setNewAssessmentName] = useState('');
+  const [newAssessmentName, setNewAssessmentName] = useState<string>('CCE 1');
   const [newAssessmentMaxScore, setNewAssessmentMaxScore] = useState('25');
   const [newAssessmentPortion, setNewAssessmentPortion] = useState('');
 
@@ -55,45 +64,14 @@ export function CCEMarksManager() {
     });
   }, [users, cceClassFilters.classGrade, cceClassFilters.section]);
 
-  // Discover all assessments existing in the database for this class & subject
-  const existingAssessmentNames = useMemo(() => {
-    if (!cceClassFilters.classGrade || !cceClassFilters.subject) return [];
-    
-    const studentIds = new Set(filteredCceStudents.map(s => s.id));
-    const matchingMarks = (cceMarks || []).filter(m => 
-      studentIds.has(m.studentId) && 
-      m.subject.toLowerCase() === cceClassFilters.subject.toLowerCase()
-    );
-
-    const names = Array.from(new Set(matchingMarks.map(m => m.cceLevel).filter(Boolean)));
-    return names;
-  }, [cceClassFilters.classGrade, cceClassFilters.subject, filteredCceStudents, cceMarks]);
-
-  // Combined available assessment tabs for the class & subject
+  // Assessment levels: strictly CCE 1, CCE 2, CCE 3, CCE 4, and Mid Term Exam as requested
   const availableAssessments = useMemo(() => {
-    const list: string[] = [];
-
-    // 1. Add any existing marks in the database first
-    existingAssessmentNames.forEach(name => {
-      if (!list.includes(name)) list.push(name);
-    });
-
-    // 2. Add any newly created session assessments
-    sessionAssessments.forEach(name => {
-      if (!list.includes(name)) list.push(name);
-    });
-
-    // 3. If list is empty, provide standard initial presets
-    if (list.length === 0) {
-      list.push('CCE 1', 'CCE 2', 'Mid Term');
-    }
-
-    return list;
-  }, [existingAssessmentNames, sessionAssessments]);
+    return [...ALLOWED_CCE_LEVELS];
+  }, []);
 
   // Ensure selected assessment is always valid
   useEffect(() => {
-    if (availableAssessments.length > 0 && !availableAssessments.includes(selectedAssessment)) {
+    if (availableAssessments.length > 0 && !availableAssessments.includes(selectedAssessment as any)) {
       setSelectedAssessment(availableAssessments[0]);
     }
   }, [availableAssessments, selectedAssessment]);
@@ -194,17 +172,13 @@ export function CCEMarksManager() {
     setCceInputData(nextInputs);
   };
 
-  // Create & add new assessment (any type of CCE or Mid Term)
+  // Create & add new assessment (strictly CCE 1, CCE 2, CCE 3, CCE 4, or Mid Term Exam)
   const handleCreateAssessment = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanName = newAssessmentName.trim();
-    if (!cleanName) {
-      alert('Please enter an assessment name or pick a preset.');
+    if (!cleanName || !ALLOWED_CCE_LEVELS.includes(cleanName as any)) {
+      alert('Please select one of the allowed assessment types: CCE 1, CCE 2, CCE 3, CCE 4, or Mid Term Exam.');
       return;
-    }
-
-    if (!sessionAssessments.includes(cleanName) && !existingAssessmentNames.includes(cleanName)) {
-      setSessionAssessments(prev => [...prev, cleanName]);
     }
 
     setSelectedAssessment(cleanName);
@@ -216,7 +190,6 @@ export function CCEMarksManager() {
     }
 
     setIsAddModalOpen(false);
-    setNewAssessmentName('');
     setNewAssessmentPortion('');
     setCceInputData({});
   };
@@ -259,6 +232,8 @@ export function CCEMarksManager() {
           score: scoreVal === 'Ab' ? 'Ab' : Number(scoreVal),
           maxScore: Number(maxVal),
           existingId: existingMark?.id,
+          teacherId: currentUser?.id,
+          teacherName: currentUser?.name,
         });
       }
     }
@@ -287,8 +262,7 @@ export function CCEMarksManager() {
     );
 
     if (matchingMarks.length === 0) {
-      // Just remove from session assessments if not stored
-      setSessionAssessments(prev => prev.filter(a => a !== selectedAssessment));
+      setCceInputData({});
       return;
     }
 
@@ -297,9 +271,8 @@ export function CCEMarksManager() {
         for (const m of matchingMarks) {
           await deleteCCEMark(m.id);
         }
-        setSessionAssessments(prev => prev.filter(a => a !== selectedAssessment));
         setCceInputData({});
-        alert(`Successfully deleted assessment "${selectedAssessment}".`);
+        alert(`Successfully deleted marks for "${selectedAssessment}".`);
       } catch (err) {
         console.error(err);
         alert("Failed to delete assessment.");
@@ -307,12 +280,8 @@ export function CCEMarksManager() {
     }
   };
 
-  // Preset assessment names teachers can quickly pick
-  const presetAssessmentNames = [
-    'CCE 1', 'CCE 2', 'CCE 3', 'CCE 4', 'CCE 5',
-    'Mid Term', 'Mid Term 2', 'Term 1', 'Term 2',
-    'Unit Test 1', 'Unit Test 2', 'Project / Assignment'
-  ];
+  // Preset assessment names: strictly CCE 1, CCE 2, CCE 3, CCE 4, Mid Term Exam
+  const presetAssessmentNames = [...ALLOWED_CCE_LEVELS];
 
   return (
     <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
@@ -327,7 +296,7 @@ export function CCEMarksManager() {
               Continuous Evaluation & Marks Manager
             </h3>
             <p className="text-xs text-slate-500 font-medium">
-              Add any type of CCE, Mid Term, or custom assessment, mention syllabus portions, and record marks.
+              Record marks for CCE 1, CCE 2, CCE 3, CCE 4, or Mid Term Exam with tested syllabus portions.
             </p>
           </div>
         </div>
@@ -335,14 +304,14 @@ export function CCEMarksManager() {
         <button
           type="button"
           onClick={() => {
-            setNewAssessmentName('');
+            setNewAssessmentName('CCE 1');
             setNewAssessmentPortion('');
             setIsAddModalOpen(true);
           }}
           className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-200 flex items-center gap-2 active:scale-95 shrink-0"
         >
           <Plus className="w-4 h-4 stroke-[3]" />
-          <span>Add Assessment / CCE</span>
+          <span>Add CCE / Mid Term</span>
         </button>
       </div>
       
@@ -725,8 +694,8 @@ export function CCEMarksManager() {
                   <Plus className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-black text-slate-900">Add Assessment / CCE</h3>
-                  <p className="text-xs text-slate-500">Add any type of CCE, Mid Term, or custom evaluation</p>
+                  <h3 className="text-base font-black text-slate-900">Add CCE / Mid Term Exam</h3>
+                  <p className="text-xs text-slate-500">Configure evaluation: CCE 1, CCE 2, CCE 3, CCE 4, or Mid Term Exam</p>
                 </div>
               </div>
               <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1">
@@ -735,42 +704,43 @@ export function CCEMarksManager() {
             </div>
 
             <form onSubmit={handleCreateAssessment} className="space-y-4">
-              {/* Presets Grid */}
+              {/* Allowed Levels Selector */}
               <div>
                 <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2">
-                  Quick Presets (Click to Select)
+                  Select Evaluation Type
                 </label>
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                   {presetAssessmentNames.map(preset => (
                     <button
                       key={preset}
                       type="button"
                       onClick={() => setNewAssessmentName(preset)}
-                      className={`p-2 rounded-xl text-xs font-black transition-all border text-center ${
+                      className={`p-3 rounded-2xl text-xs font-black transition-all border text-center flex items-center justify-center gap-1.5 ${
                         newAssessmentName === preset
-                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-100 ring-2 ring-indigo-600 ring-offset-1'
                           : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
                       }`}
                     >
-                      {preset}
+                      <span>{preset}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Assessment Name Input */}
+              {/* Assessment Level Dropdown Confirmation */}
               <div>
                 <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-1">
-                  Assessment Name / Title
+                  Selected Assessment
                 </label>
-                <input
-                  type="text"
+                <select
                   value={newAssessmentName}
                   onChange={(e) => setNewAssessmentName(e.target.value)}
-                  placeholder="E.g. CCE 1, Mid Term, Unit Test 1, or Practical"
-                  required
                   className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
+                >
+                  {ALLOWED_CCE_LEVELS.map(level => (
+                    <option key={level} value={level}>{level}</option>
+                  ))}
+                </select>
               </div>
 
               {/* Default Max Score */}

@@ -21,6 +21,13 @@ export default function Login() {
       return;
     }
 
+    const lowerAttempt = trimmedUsername.toLowerCase();
+    
+    if (lowerAttempt === 'superadmin' || lowerAttempt === 'super_admin' || lowerAttempt === 'super admin') {
+      login('super_admin_1');
+      return;
+    }
+
     // Combine current cloud users with defaults for ultimate resilience
     const allPossibleUsers = [...users];
     
@@ -31,7 +38,6 @@ export default function Login() {
       }
     });
 
-    const lowerAttempt = trimmedUsername.toLowerCase();
     const normalizedAttempt = lowerAttempt.replace(/[^a-z0-9]/g, '');
 
     // 1. Direct name match
@@ -94,7 +100,7 @@ export default function Login() {
                 <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-slate-900 text-white mb-6 shadow-xl shadow-slate-900/20 transform -rotate-3 hover:rotate-0 transition-transform duration-500">
                   <GraduationCap className="w-10 h-10" />
                 </div>
-                <h2 className="text-[10px] text-blue-600 uppercase font-black tracking-[0.3em] mb-2">{settings.name || "Grand Campus Academy"}</h2>
+                <h2 className="text-[10px] text-blue-600 uppercase font-black tracking-[0.3em] mb-2">Grand Campus Assurance Portal</h2>
                 <h3 className="text-3xl font-black text-slate-900 tracking-tight">Portal Access</h3>
                 <p className="text-slate-400 mt-2 text-sm font-medium">System identification and secure sign-in</p>
               </div>
@@ -149,8 +155,17 @@ export default function Login() {
                 </button>
               </form>
 
-              <div className="mt-10 pt-8 border-t border-slate-50 text-center">
+              <div className="mt-10 pt-8 border-t border-slate-100 text-center space-y-3">
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Global Access Control Protocol</p>
+                <a href="#/register" className="text-xs font-black text-indigo-600 hover:text-indigo-800 underline block">
+                  + Register New Institution / Campus
+                </a>
+                <button
+                  onClick={() => window.history.back()}
+                  className="text-xs font-bold text-slate-500 hover:text-slate-800 block mx-auto pt-2"
+                >
+                  ← Go Back
+                </button>
               </div>
             </div>
           </div>

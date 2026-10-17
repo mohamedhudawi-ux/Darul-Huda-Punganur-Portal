@@ -6,7 +6,7 @@ import {
   TrendingUp, HelpCircle, Users, BarChart3, BookOpen, Sparkles, Bot, 
   AlertCircle, Check, RefreshCw, LayoutDashboard, ShieldCheck, GraduationCap, 
   CheckSquare, History, X, UserCheck, Star, ThumbsUp, ArrowRight, RotateCcw, 
-  Award, Clock, Filter, Edit3, Eye, AlertTriangle, Layers, Download
+  Award, Clock, Filter, Edit3, Eye, AlertTriangle, Layers, Download, Plus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -32,20 +32,34 @@ export default function TeacherDashboard() {
   } = useStore();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const tabParam = searchParams.get('tab') as 'assessments' | 'cce' | 'activities' | 'help' | null;
-  const activeTab = tabParam || 'assessments';
+  const tabParam = searchParams.get('tab') as 'dashboard' | 'mentees' | 'cce' | 'cce-status' | 'assessments' | 'activities' | 'help' | null;
+  const activeTab = (!tabParam || tabParam === 'dashboard' || tabParam === 'mentees') ? 'dashboard' : tabParam;
 
   const setActiveTab = (tab: string) => {
-    setSearchParams({ tab });
+    if (tab === 'dashboard') {
+      setSearchParams({});
+    } else {
+      setSearchParams({ tab });
+    }
   };
 
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
   const [scores, setScores] = useState<Record<string, number>>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all');
+  const [classFilter, setClassFilter] = useState<string>('');
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
+  const [dashboardViewMode, setDashboardViewMode] = useState<'mentees' | 'cce'>('mentees');
+
+  // Auto-select student if provided in search params
+  useEffect(() => {
+    const studentParam = searchParams.get('studentId');
+    if (studentParam) {
+      setSelectedStudent(studentParam);
+    }
+  }, [searchParams]);
 
   // Available teacher assessment categories (excluding student self-assessed Spiritual categories)
   const teacherCategories = useMemo(() => {
@@ -69,9 +83,13 @@ export default function TeacherDashboard() {
   const [editSection, setEditSection] = useState('');
   const [editPassword, setEditPassword] = useState('');
 
+  // Show only mentees assigned to this teacher
   const menteeStudents = useMemo(() => {
-    return users.filter(u => u.role === 'student' && u.mentorId === currentUser?.id);
-  }, [users, currentUser?.id]);
+    return users.filter(u => 
+      u.role === 'student' && 
+      (u.mentorId === currentUser?.id || (currentUser?.name && u.mentorName === currentUser.name))
+    );
+  }, [users, currentUser]);
 
   const activeCategory = selectedCategory || 'Behavioral Wellbeing';
   const categoryQuestions = useMemo(() => {
@@ -199,13 +217,15 @@ export default function TeacherDashboard() {
     }
   };
 
-  // Filtered mentees by search and status
+  // Filtered mentees by search, class and status
   const filteredMenteeStudents = useMemo(() => {
     return menteeStudents.filter(student => {
       const matchesSearch = (student.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                             (student.admissionNumber || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                             (student.classGrade || '').toLowerCase().includes(searchQuery.toLowerCase());
       if (!matchesSearch) return false;
+
+      if (classFilter && student.classGrade !== classFilter) return false;
 
       const hasAssessed = assessments.some(
         a => a.studentId === student.id && a.assessorId === currentUser?.id && a.category === activeCategory && matchesMonth(a.month, settings.currentAssessmentMonth)
@@ -215,7 +235,7 @@ export default function TeacherDashboard() {
       if (statusFilter === 'pending') return !hasAssessed;
       return true;
     });
-  }, [menteeStudents, searchQuery, statusFilter, assessments, currentUser?.id, activeCategory, settings.currentAssessmentMonth]);
+  }, [menteeStudents, searchQuery, classFilter, statusFilter, assessments, currentUser?.id, activeCategory, settings.currentAssessmentMonth]);
 
   const selectedStudentObj = users.find(u => u.id === selectedStudent);
   const currentStudentIndex = menteeStudents.findIndex(s => s.id === selectedStudent);
@@ -237,11 +257,20 @@ export default function TeacherDashboard() {
     return (studentTasks || []).filter(t => !t.verified).length;
   }, [studentTasks]);
 
-  // CCE marks count
+  // CCE marks count given by THIS teacher
   const myClassCceCount = useMemo(() => {
-    const menteeIds = new Set(menteeStudents.map(s => s.id));
-    return (cceMarks || []).filter(m => menteeIds.has(m.studentId)).length;
-  }, [cceMarks, menteeStudents]);
+    return (cceMarks || []).filter(m => 
+      (m.teacherId && m.teacherId === currentUser?.id) || 
+      (m.teacherName && currentUser?.name && m.teacherName.toLowerCase() === currentUser.name.toLowerCase())
+    ).length;
+  }, [cceMarks, currentUser]);
+
+  // Average attendance across assigned mentees
+  const avgMenteeAttendance = useMemo(() => {
+    if (menteeStudents.length === 0) return 0;
+    const total = menteeStudents.reduce((acc, s) => acc + (s.attendance ?? 95), 0);
+    return Math.round(total / menteeStudents.length);
+  }, [menteeStudents]);
 
   const greeting = useMemo(() => {
     const hr = new Date().getHours();
@@ -280,21 +309,8 @@ export default function TeacherDashboard() {
               </h1>
 
               <p className="text-slate-300 text-xs sm:text-sm font-medium mt-1">
-                Manage your assigned mentees, enter continuous CCE assessment marks with syllabus portions, and verify student activities.
+                Faculty Mentorship & CCE Portal. Monitor your assigned mentees' details and review your submitted CCE evaluation status.
               </p>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => {
-                  setSelectedStudent(null);
-                  setActiveTab('cce');
-                }}
-                className="px-4 py-3 rounded-2xl font-black text-xs uppercase tracking-wider bg-white text-slate-900 hover:bg-slate-100 shadow-xl transition-all flex items-center gap-2 active:scale-95"
-              >
-                <BookOpen className="w-4 h-4 text-indigo-600" />
-                <span>Enter CCE Marks</span>
-              </button>
             </div>
           </div>
         </div>
@@ -302,10 +318,10 @@ export default function TeacherDashboard() {
         {/* ========================================================================= */}
         {/* FACULTY METRIC TILES */}
         {/* ========================================================================= */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">Total Mentees</span>
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">My Mentees</span>
               <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
                 <Users className="w-4 h-4" />
               </div>
@@ -320,128 +336,348 @@ export default function TeacherDashboard() {
 
           <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">Evaluations Done</span>
-              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
-                <CheckCircle2 className="w-4 h-4" />
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">Mentee Attendance</span>
+              <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
+                <GraduationCap className="w-4 h-4" />
               </div>
             </div>
-            <div className="text-2xl font-black text-slate-900">
-              {completedMenteesCount} <span className="text-sm font-semibold text-slate-400">/ {menteeStudents.length}</span>
+            <div className="text-2xl font-black text-slate-900 truncate">
+              {avgMenteeAttendance}%
             </div>
-            <div className="mt-2 w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-emerald-500 rounded-full transition-all duration-500" 
-                style={{ width: `${menteeCompletionRate}%` }}
-              ></div>
-            </div>
+            <p className="text-[11px] text-slate-500 font-medium mt-1">
+              Average mentee presence
+            </p>
           </div>
 
           <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">CCE Marks Logged</span>
-              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
-                <BookOpen className="w-4 h-4" />
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">My Given CCE Marks</span>
+              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                <CheckCircle2 className="w-4 h-4" />
               </div>
             </div>
             <div className="text-2xl font-black text-slate-900">
               {myClassCceCount}
             </div>
             <p className="text-[11px] text-slate-500 font-medium mt-1">
-              Assessments recorded with portions
+              Evaluations recorded by you
             </p>
           </div>
+        </div>
 
-          <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">Assessment Window</span>
-              <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
-                <Clock className="w-4 h-4" />
+        {/* ========================================================================= */}
+        {/* DASHBOARD VIEW SWITCHER (MENTEES DETAILS & CCE STATUS) */}
+        {/* ========================================================================= */}
+        {(activeTab === 'dashboard' || activeTab === 'cce-status') ? (
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-2 bg-slate-200/70 rounded-2xl w-full">
+            <div className="flex items-center gap-2 overflow-x-auto">
+              <button
+                onClick={() => {
+                  setSelectedStudent(null);
+                  setActiveTab('dashboard');
+                  setDashboardViewMode('mentees');
+                }}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap ${
+                  activeTab === 'dashboard' && dashboardViewMode === 'mentees'
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/40'
+                }`}
+              >
+                <Users className="w-4 h-4 text-indigo-600" />
+                <span>Mentees Details</span>
+                <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-black">
+                  {menteeStudents.length}
+                </span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setSelectedStudent(null);
+                  setActiveTab('dashboard');
+                  setDashboardViewMode('cce');
+                }}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap ${
+                  activeTab === 'cce-status' || (activeTab === 'dashboard' && dashboardViewMode === 'cce')
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/40'
+                }`}
+              >
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>CCE Status</span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-black">
+                  {myClassCceCount}
+                </span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-wider text-indigo-600 hover:text-indigo-800 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4 stroke-[3]" />
+              <span>Back to Teacher Dashboard</span>
+            </button>
+            <span className="text-xs font-black uppercase tracking-wider text-slate-400">
+              {activeTab === 'cce' ? 'CCE Marks & Portions Entry' : activeTab === 'assessments' ? 'Mentee Assessments' : activeTab === 'activities' ? 'Activity Centre' : 'Faculty Guide'}
+            </span>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* ========================================================================= */}
+        {/* TAB 0: TEACHER DASHBOARD - ONLY MY MENTEES & CCE STATUS */}
+        {/* ========================================================================= */}
+        {activeTab === 'dashboard' && (
+          <div className="space-y-6">
+            {dashboardViewMode === 'mentees' && (
+              <div className="bg-white rounded-3xl shadow-sm border border-slate-200/80 overflow-hidden flex flex-col">
+                <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-xl font-black text-slate-900 flex items-center gap-2.5">
+                      <GraduationCap className="w-6 h-6 text-indigo-600" />
+                      My Assigned Mentees
+                    </h3>
+                    <span className="px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-black">
+                      {menteeStudents.length} Students
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Showing only students assigned under your faculty mentorship profile. Track attendance, continuous CCE scores, and monthly evaluations.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+                  {/* Search box */}
+                  <div className="relative flex-1 sm:w-56">
+                    <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input 
+                      type="text" 
+                      placeholder="Search mentee name, ID..." 
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all placeholder:text-slate-400"
+                    />
+                  </div>
+
+                  {/* Class grade filter */}
+                  <div className="relative">
+                    <select
+                      value={classFilter}
+                      onChange={(e) => setClassFilter(e.target.value)}
+                      className="px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500 focus:outline-none text-slate-700"
+                    >
+                      <option value="">All Classes</option>
+                      {Array.from(new Set(menteeStudents.map(s => s.classGrade).filter(Boolean))).sort().map(c => (
+                        <option key={c} value={c}>Grade {c}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Status filter */}
+                  <div className="flex items-center bg-slate-200/60 p-1 rounded-xl">
+                    <button
+                      onClick={() => setStatusFilter('all')}
+                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${statusFilter === 'all' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-500 hover:text-slate-900'}`}
+                    >
+                      All ({menteeStudents.length})
+                    </button>
+                    <button
+                      onClick={() => setStatusFilter('pending')}
+                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${statusFilter === 'pending' ? 'bg-white text-amber-800 shadow-2xs' : 'text-slate-500 hover:text-slate-900'}`}
+                    >
+                      Due ({menteeStudents.length - completedMenteesCount})
+                    </button>
+                    <button
+                      onClick={() => setStatusFilter('completed')}
+                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${statusFilter === 'completed' ? 'bg-white text-emerald-800 shadow-2xs' : 'text-slate-500 hover:text-slate-900'}`}
+                    >
+                      Done ({completedMenteesCount})
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Mentee List / Cards */}
+              <div className="p-6">
+                {filteredMenteeStudents.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                    {filteredMenteeStudents.map(student => {
+                      const existingAssmt = assessments.find(
+                        a => a.studentId === student.id && a.assessorId === currentUser?.id && a.category === activeCategory && matchesMonth(a.month, settings.currentAssessmentMonth)
+                      );
+                      const hasAssessed = !!existingAssmt;
+
+                      // Mentee CCE marks
+                      const studentCceList = (cceMarks || []).filter(m => m.studentId === student.id);
+                      const numericCceMarks = studentCceList.filter(m => typeof m.score === 'number' && m.maxScore > 0);
+                      const cceAvg = numericCceMarks.length > 0
+                        ? Math.round(numericCceMarks.reduce((acc, m) => acc + ((m.score as number) / m.maxScore) * 100, 0) / numericCceMarks.length)
+                        : null;
+
+                      return (
+                        <div
+                          key={student.id}
+                          className="bg-white p-5 rounded-3xl border border-slate-200/90 shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-4"
+                        >
+                          <div>
+                            {/* Card Top: Avatar, Name, Edit */}
+                            <div className="flex items-start justify-between gap-3 mb-3">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-base font-black uppercase shadow-xs ${
+                                  hasAssessed 
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                                    : 'bg-indigo-600 text-white shadow-md shadow-indigo-100'
+                                }`}>
+                                  {student.name.charAt(0)}
+                                </div>
+                                <div>
+                                  <h4 className="font-black text-slate-900 text-sm tracking-tight">
+                                    {student.name}
+                                  </h4>
+                                  <p className="text-[11px] text-slate-500 font-medium">
+                                    ID: <span className="font-bold text-slate-700">{student.admissionNumber || 'N/A'}</span>
+                                    {student.classGrade && (
+                                      <span className="ml-2 font-semibold text-slate-600">• Grade {student.classGrade}{student.section ? `-${student.section}` : ''}</span>
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <button
+                                onClick={() => {
+                                  setEditingStudent(student);
+                                  setEditName(student.name);
+                                  setEditAdmission(student.admissionNumber || '');
+                                  setEditClassGrade(student.classGrade || '');
+                                  setEditSection(student.section || '');
+                                  setEditPassword(student.password || '');
+                                }}
+                                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
+                                title="Edit Mentee Details"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            {/* Attendance & CCE Stats Pill */}
+                            <div className="grid grid-cols-2 gap-2 p-3 bg-slate-50/80 rounded-2xl border border-slate-100 mb-3 text-xs">
+                              <div>
+                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Attendance</span>
+                                <span className={`font-black text-xs ${
+                                  (student.attendance ?? 95) >= 90 ? 'text-emerald-700' : (student.attendance ?? 95) >= 75 ? 'text-blue-700' : 'text-amber-700'
+                                }`}>
+                                  {student.attendance ?? 95}%
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">CCE Avg</span>
+                                <span className="font-black text-xs text-indigo-700">
+                                  {cceAvg !== null ? `${cceAvg}% (${studentCceList.length} CCEs)` : 'No CCE yet'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* CCE Recent Badges */}
+                            {studentCceList.length > 0 && (
+                              <div className="mb-3 space-y-1">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Recent CCE Marks:</span>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {studentCceList.slice(0, 3).map((cm, idx) => (
+                                    <span key={idx} className="px-2 py-0.5 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-bold">
+                                      {cm.cceLevel}: {cm.score === 'Ab' ? 'Ab' : `${cm.score}/${cm.maxScore}`}
+                                    </span>
+                                  ))}
+                                  {studentCceList.length > 3 && (
+                                    <span className="text-[10px] text-slate-400 font-bold self-center">+{studentCceList.length - 3} more</span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Evaluation Status Banner */}
+                            <div className="flex items-center justify-between">
+                              {hasAssessed ? (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-black uppercase text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                                  <Check className="w-3 h-3" /> Evaluated ({settings.currentAssessmentMonth || 'Cycle'})
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-black uppercase text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+                                  <Clock className="w-3 h-3" /> Evaluation Due
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Card Footer Actions */}
+                          <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => navigate(`/report/${student.id}?download=true`)}
+                                className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-colors"
+                                title="Download Report"
+                              >
+                                <Download className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => navigate(`/report/${student.id}`)}
+                                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors"
+                                title="View Full Report Card"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                            </div>
+
+                            <button
+                              onClick={() => {
+                                setSelectedStudent(student.id);
+                                setActiveTab('assessments');
+                              }}
+                              className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                                hasAssessed
+                                  ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                  : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shadow-indigo-200'
+                              }`}
+                            >
+                              <span>{hasAssessed ? 'Review' : 'Assess Mentee'}</span>
+                              <ChevronRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-16 bg-slate-50/50 rounded-3xl border border-dashed border-slate-200">
+                    <GraduationCap className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                    <p className="text-sm font-bold text-slate-700">
+                      {searchQuery ? `No mentees found matching "${searchQuery}"` : 'No Mentees Assigned to Your Profile'}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                      {searchQuery 
+                        ? 'Try clearing the search query or class filter.' 
+                        : 'Students are assigned to faculty mentors by the campus administrator in the Mentor Assignment management section.'}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
-            <div className="text-lg font-black text-slate-900 truncate">
-              {settings.currentAssessmentMonth || 'August'}
-            </div>
-            <p className="text-[11px] text-slate-500 font-medium mt-1">
-              Active scoring cycle
-            </p>
-          </div>
-        </div>
-
-        {/* ========================================================================= */}
-        {/* INTERACTIVE IN-PAGE TAB NAVIGATION STRIP */}
-        {/* ========================================================================= */}
-        <div className="flex items-center gap-2 p-1.5 bg-slate-200/70 rounded-2xl w-full overflow-x-auto">
-          <button
-            onClick={() => {
-              setSelectedStudent(null);
-              setActiveTab('assessments');
-            }}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap ${
-              activeTab === 'assessments'
-                ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/40'
-            }`}
-          >
-            <CheckSquare className="w-4 h-4 text-indigo-600" />
-            <span>Mentee Assessments</span>
-            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-black">
-              {completedMenteesCount}/{menteeStudents.length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => {
-              setSelectedStudent(null);
-              setActiveTab('cce');
-            }}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap ${
-              activeTab === 'cce'
-                ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/40'
-            }`}
-          >
-            <BookOpen className="w-4 h-4 text-blue-600" />
-            <span>CCE Marks & Portions Entry</span>
-            <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-black">
-              Active
-            </span>
-          </button>
-
-          <button
-            onClick={() => {
-              setSelectedStudent(null);
-              setActiveTab('activities');
-            }}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap ${
-              activeTab === 'activities'
-                ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/40'
-            }`}
-          >
-            <Award className="w-4 h-4 text-amber-500" />
-            <span>Activity & Task Verifier</span>
-            {pendingTasksCount > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-black">
-                {pendingTasksCount}
-              </span>
             )}
-          </button>
 
-          <button
-            onClick={() => {
-              setSelectedStudent(null);
-              setActiveTab('help');
-            }}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap ${
-              activeTab === 'help'
-                ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/40'
-            }`}
-          >
-            <HelpCircle className="w-4 h-4 text-slate-500" />
-            <span>Faculty Guide</span>
-          </button>
-        </div>
+            {/* CCE Status Section on Teacher Dashboard - Only CCE given by this teacher */}
+            {dashboardViewMode === 'cce' && (
+              <div className="space-y-4">
+                <CCEMarksSummary 
+                  showOnlyTeacher={true} 
+                  teacherId={currentUser?.id} 
+                  teacherName={currentUser?.name} 
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ========================================================================= */}
         {/* TAB 1: MENTEE ASSESSMENTS */}
@@ -930,12 +1166,24 @@ export default function TeacherDashboard() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 2: CCE MARKS ENTRY & PORTIONS */}
+        {/* TAB 2: CCE MARKS ENTRY */}
         {/* ========================================================================= */}
         {activeTab === 'cce' && (
           <div className="space-y-8 animate-in fade-in duration-300">
             <CCEMarksManager />
-            <CCEMarksSummary />
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 3: CCE STATUS - SHOWS ONLY CCE GIVEN BY THIS TEACHER */}
+        {/* ========================================================================= */}
+        {activeTab === 'cce-status' && (
+          <div className="space-y-8 animate-in fade-in duration-300">
+            <CCEMarksSummary 
+              showOnlyTeacher={true} 
+              teacherId={currentUser?.id} 
+              teacherName={currentUser?.name} 
+            />
           </div>
         )}
 

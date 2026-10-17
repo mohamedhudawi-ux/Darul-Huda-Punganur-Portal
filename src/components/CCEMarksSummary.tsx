@@ -2,9 +2,29 @@ import React, { useState, useMemo } from 'react';
 import { useStore } from '../lib/store';
 import { CheckCircle2, AlertCircle, Filter } from 'lucide-react';
 
-export function CCEMarksSummary() {
+export interface CCEMarksSummaryProps {
+  teacherId?: string;
+  teacherName?: string;
+  showOnlyTeacher?: boolean;
+}
+
+export function CCEMarksSummary({ teacherId, teacherName, showOnlyTeacher = false }: CCEMarksSummaryProps = {}) {
   const { users, cceMarks } = useStore();
   const [classFilter, setClassFilter] = useState('');
+  const [levelFilter, setLevelFilter] = useState('');
+
+  const relevantMarks = useMemo(() => {
+    if (!showOnlyTeacher && !teacherId) return cceMarks;
+    return (cceMarks || []).filter(mark => {
+      if (teacherId && mark.teacherId) {
+        return mark.teacherId === teacherId;
+      }
+      if (teacherName && mark.teacherName) {
+        return mark.teacherName.toLowerCase() === teacherName.toLowerCase();
+      }
+      return false;
+    });
+  }, [cceMarks, showOnlyTeacher, teacherId, teacherName]);
 
   const summary = useMemo(() => {
     const students = users.filter(u => u.role === 'student');
@@ -18,10 +38,11 @@ export function CCEMarksSummary() {
       absentCount: number;
       totalStudents: number;
       marksUploaded: number;
+      teacherName?: string;
     }> = {};
 
     // Group marks by (classGrade, section, subject, cceLevel)
-    cceMarks.forEach(mark => {
+    relevantMarks.forEach(mark => {
       const student = students.find(s => s.id === mark.studentId);
       if (!student || !student.classGrade) return;
 
@@ -43,12 +64,16 @@ export function CCEMarksSummary() {
           absentCount: 0,
           month: mark.month || 'Term',
           totalStudents: classStudents.length,
-          marksUploaded: 0
+          marksUploaded: 0,
+          teacherName: mark.teacherName
         };
       }
       
       if (mark.description && !groups[key].description) {
         groups[key].description = mark.description;
+      }
+      if (mark.teacherName && !groups[key].teacherName) {
+        groups[key].teacherName = mark.teacherName;
       }
       if (mark.score === 'Ab') {
         groups[key].absentCount += 1;
@@ -62,32 +87,61 @@ export function CCEMarksSummary() {
       if (a.subject !== b.subject) return a.subject.localeCompare(b.subject);
       return a.cceLevel.localeCompare(b.cceLevel);
     });
-  }, [users, cceMarks]);
+  }, [users, relevantMarks]);
 
-  const filteredSummary = summary.filter(item => 
-    !classFilter || (item.classGrade || '').toLowerCase().includes(classFilter.toLowerCase())
-  );
+  const filteredSummary = summary.filter(item => {
+    const matchesClass = !classFilter || (item.classGrade || '').toLowerCase().includes(classFilter.toLowerCase());
+    const matchesLevel = !levelFilter || (item.cceLevel || '').toLowerCase() === levelFilter.toLowerCase();
+    return matchesClass && matchesLevel;
+  });
 
   const classes = Array.from(new Set(users.filter(u => u.role === 'student' && u.classGrade).map(u => u.classGrade))).sort();
+  const cceLevels = ['CCE 1', 'CCE 2', 'CCE 3', 'CCE 4', 'Mid Term Exam'];
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-      <div className="p-6 border-b border-slate-100 bg-slate-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="p-6 border-b border-slate-100 bg-slate-50/70 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-            CCE Submission Status
-          </h3>
-          <p className="text-xs text-slate-500 font-medium mt-1">Summary of marks uploaded across classes, subjects, and levels.</p>
+          <div className="flex items-center gap-2 mb-1">
+            <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+              {showOnlyTeacher 
+                ? (teacherName ? `CCE Status — Given by ${teacherName}` : 'My CCE Submission Status') 
+                : 'CCE Submission Status'}
+            </h3>
+            {showOnlyTeacher && (
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-extrabold text-[10px] uppercase tracking-wider">
+                My Evaluated CCE Only
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-slate-500 font-medium">
+            {showOnlyTeacher 
+              ? `Review all continuous evaluation marks and portions you have submitted across your classes.` 
+              : `Summary of continuous evaluation marks uploaded across classes, subjects, and levels.`}
+          </p>
         </div>
         
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <div className="relative flex-1 sm:w-64">
+        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+          {/* Level Filter */}
+          <div className="relative">
+            <select 
+              value={levelFilter}
+              onChange={(e) => setLevelFilter(e.target.value)}
+              className="pl-3 pr-8 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-bold appearance-none text-slate-700"
+            >
+              <option value="">All CCE Levels</option>
+              {cceLevels.map(lvl => <option key={lvl} value={lvl}>{lvl}</option>)}
+            </select>
+          </div>
+
+          {/* Class Filter */}
+          <div className="relative flex-1 sm:w-48">
             <Filter className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <select 
               value={classFilter}
               onChange={(e) => setClassFilter(e.target.value)}
-              className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-medium appearance-none"
+              className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-bold appearance-none text-slate-700"
             >
               <option value="">All Classes</option>
               {classes.map(c => <option key={c} value={c}>Grade {c}</option>)}
@@ -168,8 +222,22 @@ export function CCEMarksSummary() {
               })
             ) : (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic text-sm">
-                  No CCE mark submissions found for the selected criteria.
+                <td colSpan={7} className="px-6 py-16 text-center">
+                  <div className="max-w-md mx-auto space-y-3">
+                    <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                      <CheckCircle2 className="w-6 h-6 text-slate-400" />
+                    </div>
+                    <p className="text-sm font-bold text-slate-700">
+                      {showOnlyTeacher 
+                        ? (teacherName ? `No CCE marks recorded by ${teacherName} yet.` : 'No CCE marks recorded by you yet.')
+                        : 'No CCE mark submissions found for the selected criteria.'}
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      {showOnlyTeacher 
+                        ? 'Select "CCE Marks Entry" from the menu bar to enter marks for CCE 1, CCE 2, CCE 3, CCE 4, or Mid Term Exam.'
+                        : 'Try adjusting the class or CCE level filter above.'}
+                    </p>
+                  </div>
                 </td>
               </tr>
             )}

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, Question, Assessment, CCEMark, CampusSettings, SubjectConfig, AssessmentLogEntry, MentorInsight, SkillClubMark, TaskTemplate, StudentTask } from '../types';
+import { User, Question, Assessment, CCEMark, CampusSettings, SubjectConfig, AssessmentLogEntry, MentorInsight, SkillClubMark, TaskTemplate, StudentTask, Campus, SubscriptionPlan, PaymentRecord, PlatformAnnouncement, AuditLog } from '../types';
 import { matchesMonth, getAcademicMonthForDate, isMonthOver } from './utils';
 import { 
   collection, 
@@ -105,6 +105,11 @@ interface DatabaseState {
   skillClubMarks: SkillClubMark[];
   taskTemplates: TaskTemplate[];
   studentTasks: StudentTask[];
+  campuses: Campus[];
+  subscriptionPlans: SubscriptionPlan[];
+  payments: PaymentRecord[];
+  platformAnnouncements: PlatformAnnouncement[];
+  auditLogs: AuditLog[];
 }
 
 interface AuthState {
@@ -146,6 +151,13 @@ interface DatabaseContextType extends DatabaseState, AuthState {
   deleteStudentTask: (id: string) => void;
   deleteStudentTasks: (ids: string[]) => void;
   deleteSkillClubMark: (id: string) => void;
+  registerCampus: (data: Omit<Campus, 'id' | 'status' | 'subscriptionStatus' | 'createdAt'> & { password?: string }) => Promise<void>;
+  updateCampusStatus: (campusId: string, status: 'pending' | 'active' | 'suspended' | 'deactivated') => Promise<void>;
+  updateCampusSubscription: (campusId: string, planId: string, status: 'trial' | 'active' | 'grace' | 'expired') => Promise<void>;
+  addSubscriptionPlan: (plan: Omit<SubscriptionPlan, 'id'>) => Promise<void>;
+  updateSubscriptionPlan: (planId: string, updates: Partial<SubscriptionPlan>) => Promise<void>;
+  sendPlatformAnnouncement: (ann: Omit<PlatformAnnouncement, 'id' | 'createdAt'>) => Promise<void>;
+  addAuditLog: (log: Omit<AuditLog, 'id' | 'timestamp'>) => Promise<void>;
 }
 
 const defaultSettings: CampusSettings = {
@@ -166,6 +178,7 @@ const defaultSettings: CampusSettings = {
 };
 
 export const defaultUsers: User[] = [
+  { id: 'super_admin_1', role: 'super_admin', name: 'Platform Super Admin', password: 'password123' },
   { id: 'admin1', role: 'admin', name: 'Campus Admin', password: 'password123' },
   { id: 'demo_teacher', role: 'teacher', name: 'Demo Teacher', classGrade: '10', section: 'A', password: 'password123' },
   { id: 'teacher1', role: 'teacher', name: 'Mr. Smith', classGrade: '10', section: 'A', password: 'password123' },
@@ -178,7 +191,9 @@ export const defaultUsers: User[] = [
     classGrade: '10', 
     section: 'A', 
     password: 'password123',
-    attendance: 100
+    attendance: 100,
+    mentorId: 'demo_teacher',
+    mentorName: 'Demo Teacher'
   },
   { 
     id: 'student1', 
@@ -189,6 +204,8 @@ export const defaultUsers: User[] = [
     section: 'A', 
     password: 'password123',
     attendance: 96,
+    mentorId: 'demo_teacher',
+    mentorName: 'Demo Teacher',
     semesterHistory: [
       { semester: 'Shawwal 2025', academicScore: 82, attendance: 93 },
       { semester: 'Dhul-Qadah 2025', academicScore: 86, attendance: 95 },
@@ -205,6 +222,8 @@ export const defaultUsers: User[] = [
     section: 'A', 
     password: 'password123',
     attendance: 91,
+    mentorId: 'teacher1',
+    mentorName: 'Mr. Smith',
     semesterHistory: [
       { semester: 'Shawwal 2025', academicScore: 74, attendance: 88 },
       { semester: 'Dhul-Qadah 2025', academicScore: 78, attendance: 90 },
@@ -221,6 +240,8 @@ export const defaultUsers: User[] = [
     section: 'B', 
     password: 'password123',
     attendance: 94,
+    mentorId: 'teacher2',
+    mentorName: 'Mrs. Davis',
     semesterHistory: [
       { semester: 'Shawwal 2025', academicScore: 80, attendance: 91 },
       { semester: 'Dhul-Qadah 2025', academicScore: 83, attendance: 94 },
@@ -243,6 +264,57 @@ const defaultSubjects: SubjectConfig[] = [
   { id: 'sub3', classGrade: '10', name: 'English' },
 ];
 
+const defaultSubscriptionPlans: SubscriptionPlan[] = [
+  {
+    id: 'plan_starter',
+    name: 'Starter Campus',
+    priceMonthly: 49,
+    priceAnnual: 490,
+    maxStudents: 250,
+    maxStaff: 20,
+    storageLimitGb: 10,
+    features: ['Isolated Tenant Environment', 'Core CCE & Attendance', 'Standard Support'],
+    description: 'Perfect for small schools and individual educational institutes.'
+  },
+  {
+    id: 'plan_pro',
+    name: 'Professional Campus',
+    priceMonthly: 149,
+    priceAnnual: 1490,
+    maxStudents: 1000,
+    maxStaff: 75,
+    storageLimitGb: 50,
+    features: ['Advanced Analytics', 'Priority Support', 'Custom Report Branding', 'Unlimited Sections'],
+    description: 'Ideal for growing colleges and high schools.'
+  },
+  {
+    id: 'plan_enterprise',
+    name: 'Enterprise Unlimited',
+    priceMonthly: 299,
+    priceAnnual: 2990,
+    maxStudents: 999999,
+    maxStaff: 9999,
+    storageLimitGb: 500,
+    features: ['Dedicated Account Manager', 'Custom Domain Support', 'SLA Guarantee', 'Advanced Audit Logs'],
+    description: 'For large educational networks and universities.'
+  }
+];
+
+const defaultCampuses: Campus[] = [
+  {
+    id: 'campus_grand',
+    slug: 'grand-campus',
+    name: 'Grand Campus Assurance Portal',
+    address: '123 Education Lane, Silicon Valley, CA',
+    adminEmail: 'admin@grandcampus.edu',
+    adminName: 'Campus Admin',
+    status: 'active',
+    subscriptionPlanId: 'plan_pro',
+    subscriptionStatus: 'active',
+    createdAt: '2026-01-01'
+  }
+];
+
 const StoreContext = createContext<DatabaseContextType | undefined>(undefined);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
@@ -256,6 +328,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [skillClubMarks, setSkillClubMarks] = useState<SkillClubMark[]>([]);
   const [taskTemplates, setTaskTemplates] = useState<TaskTemplate[]>([]);
   const [studentTasks, setStudentTasks] = useState<StudentTask[]>([]);
+  const [campuses, setCampuses] = useState<Campus[]>(defaultCampuses);
+  const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>(defaultSubscriptionPlans);
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [platformAnnouncements, setPlatformAnnouncements] = useState<PlatformAnnouncement[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([
+    { id: 'log_1', timestamp: new Date().toLocaleTimeString(), action: 'SYSTEM_BOOT', details: 'Multi-tenant SaaS platform initialized successfully.' }
+  ]);
   const [settings, setSettings] = useState<CampusSettings>(defaultSettings);
   
   const [loading, setLoading] = useState(true);
@@ -489,6 +568,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [loading, settings.currentAssessmentMonth, settings.academicYear, settings.autoAdvanceMonth]);
 
   const login = (userId: string) => {
+    if (userId === 'super_admin_1') {
+      const superAdminUser: User = {
+        id: 'super_admin_1',
+        role: 'super_admin',
+        name: 'Platform Super Admin',
+        password: 'password123'
+      };
+      setCurrentUser(superAdminUser);
+      localStorage.setItem('campus_auth', JSON.stringify(superAdminUser));
+      return;
+    }
     const user = users?.find((u) => u.id === userId) || defaultUsers.find(u => u.id === userId);
     if (user) {
       setCurrentUser(user);
@@ -712,7 +802,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
       const id = `m${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const { existingId, ...cleanMark } = m as any;
-      batch.set(doc(db, 'cceMarks', id), cleanData({ ...cleanMark, id }));
+      const teacherId = cleanMark.teacherId || currentUser?.id;
+      const teacherName = cleanMark.teacherName || currentUser?.name;
+      batch.set(doc(db, 'cceMarks', id), cleanData({ ...cleanMark, teacherId, teacherName, id }));
     });
     
     try {
@@ -895,6 +987,60 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const registerCampus = async (data: Omit<Campus, 'id' | 'status' | 'subscriptionStatus' | 'createdAt'> & { password?: string }) => {
+    const id = `campus_${Date.now()}`;
+    const newCampus: Campus = {
+      id,
+      slug: data.slug,
+      name: data.name,
+      address: data.address,
+      adminEmail: data.adminEmail,
+      adminName: data.adminName,
+      phone: data.phone,
+      status: 'active',
+      subscriptionPlanId: data.subscriptionPlanId,
+      subscriptionStatus: 'trial',
+      createdAt: new Date().toISOString().split('T')[0]
+    };
+    setCampuses(prev => [...prev, newCampus]);
+    const newAdmin: User = {
+      id: `admin_${id}`,
+      campusId: id,
+      role: 'admin',
+      name: data.adminName,
+      password: data.password || 'password123'
+    };
+    setUsers(prev => [...prev, newAdmin]);
+    setAuditLogs(prev => [{ id: `log_${Date.now()}`, campusId: id, action: 'CAMPUS_REGISTERED', details: `New campus registered: ${data.name} (${data.slug})`, timestamp: new Date().toLocaleTimeString() }, ...prev]);
+  };
+
+  const updateCampusStatus = async (campusId: string, status: 'pending' | 'active' | 'suspended' | 'deactivated') => {
+    setCampuses(prev => prev.map(c => c.id === campusId ? { ...c, status } : c));
+  };
+
+  const updateCampusSubscription = async (campusId: string, planId: string, status: 'trial' | 'active' | 'grace' | 'expired') => {
+    setCampuses(prev => prev.map(c => c.id === campusId ? { ...c, subscriptionPlanId: planId, subscriptionStatus: status } : c));
+  };
+
+  const addSubscriptionPlan = async (plan: Omit<SubscriptionPlan, 'id'>) => {
+    const id = `plan_${Date.now()}`;
+    setSubscriptionPlans(prev => [...prev, { ...plan, id }]);
+  };
+
+  const updateSubscriptionPlan = async (planId: string, updates: Partial<SubscriptionPlan>) => {
+    setSubscriptionPlans(prev => prev.map(p => p.id === planId ? { ...p, ...updates } : p));
+  };
+
+  const sendPlatformAnnouncement = async (ann: Omit<PlatformAnnouncement, 'id' | 'createdAt'>) => {
+    const id = `ann_${Date.now()}`;
+    setPlatformAnnouncements(prev => [{ ...ann, id, createdAt: new Date().toLocaleDateString() }, ...prev]);
+  };
+
+  const addAuditLog = async (log: Omit<AuditLog, 'id' | 'timestamp'>) => {
+    const id = `log_${Date.now()}`;
+    setAuditLogs(prev => [{ ...log, id, timestamp: new Date().toLocaleTimeString() }, ...prev]);
+  };
+
   return (
     <StoreContext.Provider
       value={{
@@ -909,6 +1055,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         skillClubMarks: skillClubMarks || [],
         taskTemplates: taskTemplates || [],
         studentTasks: studentTasks || [],
+        campuses: campuses || [],
+        subscriptionPlans: subscriptionPlans || [],
+        payments: payments || [],
+        platformAnnouncements: platformAnnouncements || [],
+        auditLogs: auditLogs || [],
         loading,
         syncStatus,
         lastSyncTime,
@@ -943,7 +1094,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         addStudentTask,
         addStudentTasks,
         deleteStudentTask,
-        deleteStudentTasks
+        deleteStudentTasks,
+        registerCampus,
+        updateCampusStatus,
+        updateCampusSubscription,
+        addSubscriptionPlan,
+        updateSubscriptionPlan,
+        sendPlatformAnnouncement,
+        addAuditLog
       }}
     >
       {children}

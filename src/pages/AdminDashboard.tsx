@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout } from '../components/ui/Layout';
 import { useStore } from '../lib/store';
-import { Upload, Plus, Trash2, Edit2, Check, X, FileSpreadsheet, Users, UserPlus, Eye, EyeOff, FileText, Settings as SettingsIcon, Printer, Cloud, RefreshCw, Search, BookOpen, HelpCircle, History, Sparkles, TrendingUp, ShieldCheck, CheckCircle2, GraduationCap, CheckSquare, Download, Clock } from 'lucide-react';
+import { Upload, Plus, Trash2, Edit2, Check, X, FileSpreadsheet, Users, UserPlus, Eye, EyeOff, FileText, Settings as SettingsIcon, Printer, Cloud, RefreshCw, Search, BookOpen, HelpCircle, History, Sparkles, TrendingUp, ShieldCheck, CheckCircle2, GraduationCap, CheckSquare } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CCEMarksManager } from '../components/CCEMarksManager';
@@ -31,7 +31,6 @@ export default function AdminDashboard() {
   const [cceClassFilters, setCceClassFilters] = useState({ classGrade: '', section: '', subject: '', cceLevel: '' });
   const [reportType, setReportType] = useState<'all' | 'cce' | string>('all');
   const [cceViewMode, setCceViewMode] = useState<'inspector' | 'entry' | 'summary'>('inspector');
-  const [reportStatusFilter, setReportStatusFilter] = useState<'all' | 'pending' | 'complete'>('all');
 
   // Mentorship assignment state
   const [assignMentorId, setAssignMentorId] = useState('');
@@ -207,90 +206,6 @@ export default function AdminDashboard() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
-
-  const downloadPendingReportsExcel = () => {
-    const month = settings.reportMonth || settings.currentAssessmentMonth || 'August';
-    const requiredCategories = settings.assessmentCategories || [];
-    const teacherCategories = requiredCategories.filter(c => !c.toLowerCase().includes('spiritual'));
-
-    const pendingData = filteredCceStudents.filter(student => {
-      const studentAssessments = assessments.filter(a => a.studentId === student.id && matchesMonth(a.month, month));
-      const teacherAssessments = studentAssessments.filter(a => a.assessorId === student.mentorId);
-      const selfAssessments = studentAssessments.filter(a => a.assessorId === student.id);
-      const teacherAssessedCategories = new Set(teacherAssessments.map(a => a.category));
-      
-      const isTeacherDone = teacherCategories.length === 0 
-        ? teacherAssessments.length > 0 
-        : teacherCategories.every(cat => teacherAssessedCategories.has(cat));
-      const isStudentDone = selfAssessments.length > 0;
-      
-      const studentTemplates = taskTemplates.filter(t => String(t.classGrade) === String(student.classGrade) && matchesMonth(t.month, month));
-      const completedTasks = studentTasks.filter(t => t.studentId === student.id && t.completed && matchesMonth(t.month, month));
-      const tasksCompleted = studentTemplates.length === 0 || completedTasks.length > 0 || studentTemplates.every(template => 
-        completedTasks.some(t => t.templateId === template.id)
-      );
-
-      return !isTeacherDone || !isStudentDone || !tasksCompleted;
-    });
-
-    if (pendingData.length === 0) {
-      alert("No students with pending assessments found for this selection!");
-      return;
-    }
-
-    const headers = [
-      'Admission Number',
-      'Student Name',
-      'Class & Section',
-      'Assigned Mentor',
-      'Target Month',
-      'Teacher Assessment Status',
-      'Spiritual Self-Assessment',
-      'Monthly Tasks Status',
-      'Monthly CCE Marks Available',
-      'Report Card Action'
-    ];
-
-    const rows = pendingData.map(student => {
-      const mentor = users.find(u => u.id === student.mentorId);
-      const studentAssessments = assessments.filter(a => a.studentId === student.id && matchesMonth(a.month, month));
-      const teacherAssessments = studentAssessments.filter(a => a.assessorId === student.mentorId);
-      const selfAssessments = studentAssessments.filter(a => a.assessorId === student.id);
-      const teacherAssessedCategories = new Set(teacherAssessments.map(a => a.category));
-      
-      const isTeacherDone = teacherCategories.length === 0 
-        ? teacherAssessments.length > 0 
-        : teacherCategories.every(cat => teacherAssessedCategories.has(cat));
-      const isStudentDone = selfAssessments.length > 0;
-      
-      const studentTemplates = taskTemplates.filter(t => String(t.classGrade) === String(student.classGrade) && matchesMonth(t.month, month));
-      const completedTasks = studentTasks.filter(t => t.studentId === student.id && t.completed && matchesMonth(t.month, month));
-      const tasksCompleted = studentTemplates.length === 0 || completedTasks.length > 0 || studentTemplates.every(template => 
-        completedTasks.some(t => t.templateId === template.id)
-      );
-
-      const studentMarks = cceMarks.filter(m => m.studentId === student.id && matchesMonth(m.month, month));
-      const cceSummary = studentMarks.length > 0 ? `${studentMarks.length} subject mark(s) logged` : 'No marks yet';
-
-      return [
-        student.admissionNumber || 'N/A',
-        student.name,
-        `Grade ${student.classGrade || '-'} - Sec ${student.section || '-'}`,
-        mentor?.name || 'Unassigned',
-        month,
-        isTeacherDone ? 'Done' : 'PENDING',
-        isStudentDone ? 'Done' : 'PENDING',
-        tasksCompleted ? 'Complete' : 'PENDING',
-        cceSummary,
-        'Provisional CCE Report Available for Download'
-      ];
-    });
-
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Pending Reports');
-    XLSX.writeFile(wb, `pending_reports_grade_${cceClassFilters.classGrade || 'all'}_${month}.xlsx`);
   };
 
   const teachers = users.filter(u => u.role === 'teacher');
@@ -558,21 +473,41 @@ export default function AdminDashboard() {
   const [dirSectionFilter, setDirSectionFilter] = useState('');
   const [dirRoleFilter, setDirRoleFilter] = useState<string>('all');
 
+  // Quick student finder state for Overview dashboard
+  const [dashboardStudentSearch, setDashboardStudentSearch] = useState('');
+  const [dashboardStudentClassFilter, setDashboardStudentClassFilter] = useState('');
+  const [dashboardStudentSectionFilter, setDashboardStudentSectionFilter] = useState('');
+
+  const allStudentUsers = users.filter(u => u.role === 'student');
+  const availableDashboardGrades = Array.from(new Set(allStudentUsers.map(u => u.classGrade).filter(Boolean))) as string[];
+  const availableDashboardSections = Array.from(new Set(allStudentUsers.map(u => u.section).filter(Boolean))) as string[];
+
+  const filteredDashboardStudents = allStudentUsers.filter(u => {
+    const matchesSearch = dashboardStudentSearch === '' || 
+      (u.name || '').toLowerCase().includes(dashboardStudentSearch.toLowerCase()) || 
+      (u.admissionNumber && (u.admissionNumber || '').toLowerCase().includes(dashboardStudentSearch.toLowerCase()));
+    const matchesClass = dashboardStudentClassFilter === '' || u.classGrade === dashboardStudentClassFilter;
+    const matchesSection = dashboardStudentSectionFilter === '' || u.section === dashboardStudentSectionFilter;
+    return matchesSearch && matchesClass && matchesSection;
+  });
+
   const allVisibleUsers = users.filter(u => u.role !== 'admin');
   const availableClasses = Array.from(new Set(allVisibleUsers.map(u => u.classGrade).filter(Boolean))) as string[];
   const availableSections = Array.from(new Set(allVisibleUsers.map(u => u.section).filter(Boolean))) as string[];
 
   const isFilterOrSearchActive = dirSearchQuery.trim() !== '' || dirClassFilter !== '' || dirSectionFilter !== '' || dirRoleFilter !== 'all';
 
-  const visibleUsers = allVisibleUsers.filter(u => {
-    const matchesSearch = dirSearchQuery === '' || 
-      (u.name || '').toLowerCase().includes(dirSearchQuery.toLowerCase()) || 
-      (u.admissionNumber && (u.admissionNumber || '').toLowerCase().includes(dirSearchQuery.toLowerCase()));
-    const matchesClass = dirClassFilter === '' || u.classGrade === dirClassFilter;
-    const matchesSection = dirSectionFilter === '' || u.section === dirSectionFilter;
-    const matchesRole = dirRoleFilter === 'all' || u.role === dirRoleFilter;
-    return matchesSearch && matchesClass && matchesSection && matchesRole;
-  });
+  const visibleUsers = isFilterOrSearchActive 
+    ? allVisibleUsers.filter(u => {
+        const matchesSearch = dirSearchQuery === '' || 
+          (u.name || '').toLowerCase().includes(dirSearchQuery.toLowerCase()) || 
+          (u.admissionNumber && (u.admissionNumber || '').toLowerCase().includes(dirSearchQuery.toLowerCase()));
+        const matchesClass = dirClassFilter === '' || u.classGrade === dirClassFilter;
+        const matchesSection = dirSectionFilter === '' || u.section === dirSectionFilter;
+        const matchesRole = dirRoleFilter === 'all' || u.role === dirRoleFilter;
+        return matchesSearch && matchesClass && matchesSection && matchesRole;
+      })
+    : [];
   
   const handleToggleUserSelection = (userId: string) => {
     const newSelection = new Set(selectedUserIds);
@@ -642,55 +577,6 @@ export default function AdminDashboard() {
     u.classGrade === cceClassFilters.classGrade && 
     (cceClassFilters.section ? u.section === cceClassFilters.section : true)
   );
-
-  const studentsWithStatus = useMemo(() => {
-    const month = settings.reportMonth || settings.currentAssessmentMonth || 'August';
-    const requiredCategories = settings.assessmentCategories || [];
-    const teacherCategories = requiredCategories.filter(c => !c.toLowerCase().includes('spiritual'));
-
-    return filteredCceStudents.map(student => {
-      const studentAssessments = assessments.filter(a => a.studentId === student.id && matchesMonth(a.month, month));
-      const teacherAssessments = studentAssessments.filter(a => a.assessorId === student.mentorId);
-      const selfAssessments = studentAssessments.filter(a => a.assessorId === student.id);
-      const teacherAssessedCategories = new Set(teacherAssessments.map(a => a.category));
-      
-      const isTeacherDone = teacherCategories.length === 0 
-        ? teacherAssessments.length > 0 
-        : teacherCategories.every(cat => teacherAssessedCategories.has(cat));
-      const isStudentDone = selfAssessments.length > 0;
-      
-      const studentTemplates = taskTemplates.filter(t => String(t.classGrade) === String(student.classGrade) && matchesMonth(t.month, month));
-      const completedTasks = studentTasks.filter(t => t.studentId === student.id && t.completed && matchesMonth(t.month, month));
-      const tasksCompleted = studentTemplates.length === 0 || completedTasks.length > 0 || studentTemplates.every(template => 
-        completedTasks.some(t => t.templateId === template.id)
-      );
-
-      const isComplete = isTeacherDone && isStudentDone && tasksCompleted;
-      const isPending = !isComplete;
-
-      return {
-        student,
-        isComplete,
-        isPending,
-        isTeacherDone,
-        isStudentDone,
-        tasksCompleted
-      };
-    });
-  }, [filteredCceStudents, assessments, taskTemplates, studentTasks, settings.reportMonth, settings.currentAssessmentMonth, settings.assessmentCategories]);
-
-  const displayedStudents = useMemo(() => {
-    if (reportStatusFilter === 'pending') {
-      return studentsWithStatus.filter(s => s.isPending);
-    }
-    if (reportStatusFilter === 'complete') {
-      return studentsWithStatus.filter(s => s.isComplete);
-    }
-    return studentsWithStatus;
-  }, [studentsWithStatus, reportStatusFilter]);
-
-  const pendingCount = useMemo(() => studentsWithStatus.filter(s => s.isPending).length, [studentsWithStatus]);
-  const completeCount = useMemo(() => studentsWithStatus.filter(s => s.isComplete).length, [studentsWithStatus]);
 
   return (
     <Layout>
@@ -787,6 +673,111 @@ export default function AdminDashboard() {
             </div>
           </div>
         </div>
+
+            {/* Quick Student Search & Class/Grade Filter Widget */}
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                    <Users className="w-5 h-5 text-blue-600" /> Quick Student Finder
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">Search for specific students by name or admission ID, or filter by class/grade instantly.</p>
+                </div>
+                <button 
+                  onClick={() => setActiveTab('users')}
+                  className="text-xs font-black text-blue-600 hover:text-blue-800 uppercase tracking-wider"
+                >
+                  Open Full Directory →
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input 
+                    type="text" 
+                    value={dashboardStudentSearch}
+                    onChange={(e) => setDashboardStudentSearch(e.target.value)}
+                    placeholder="Search student name or ID..."
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  />
+                </div>
+                <div>
+                  <select
+                    value={dashboardStudentClassFilter}
+                    onChange={(e) => setDashboardStudentClassFilter(e.target.value)}
+                    className="w-full py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  >
+                    <option value="">All Classes / Grades</option>
+                    {availableDashboardGrades.sort().map(c => (
+                      <option key={c} value={c}>Grade {c}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <select
+                    value={dashboardStudentSectionFilter}
+                    onChange={(e) => setDashboardStudentSectionFilter(e.target.value)}
+                    className="w-full py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  >
+                    <option value="">All Sections</option>
+                    {availableDashboardSections.sort().map(s => (
+                      <option key={s} value={s}>Section {s}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Results */}
+              {(dashboardStudentSearch.trim() !== '' || dashboardStudentClassFilter !== '' || dashboardStudentSectionFilter !== '') ? (
+                <div className="mt-4 space-y-2 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                  {filteredDashboardStudents.length > 0 ? (
+                    filteredDashboardStudents.map(student => (
+                      <div key={student.id} className="flex items-center justify-between p-3.5 bg-slate-50 hover:bg-blue-50/50 border border-slate-200/80 rounded-2xl transition-all">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 font-black text-xs flex items-center justify-center">
+                            {student.name.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="text-xs font-black text-slate-900">{student.name}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[10px] font-bold text-slate-500">ID: {student.admissionNumber || 'N/A'}</span>
+                              <span className="text-slate-300">•</span>
+                              <span className="text-[10px] font-bold text-blue-600">Grade {student.classGrade || 'N/A'} {student.section ? `• Sec ${student.section}` : ''}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={() => {
+                              impersonate(student.id);
+                              navigate('/student');
+                            }}
+                            className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg text-[10px] font-bold text-slate-700 flex items-center gap-1 transition-all shadow-xs"
+                          >
+                            <Eye className="w-3 h-3" /> Portal
+                          </button>
+                          <button 
+                            onClick={() => navigate(`/report/${student.id}`)}
+                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all shadow-xs"
+                          >
+                            <FileText className="w-3 h-3" /> Report
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="py-8 text-center text-slate-400 text-xs italic">
+                      No students found matching your search or filter.
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="py-6 text-center text-slate-400 text-xs italic bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                  Type a student name, admission ID, or select a grade filter above to quickly locate students.
+                </div>
+              )}
+            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* System Status & Window */}
@@ -1155,17 +1146,10 @@ export default function AdminDashboard() {
                                   />
                                 </label>
                                 <button 
-                                  onClick={() => navigate(`/report/${u.id}?download=true`)}
-                                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-xs font-bold transition-colors"
-                                  title="Download / Print Report Card directly"
-                                >
-                                  <Download className="w-3 h-3" /> Download Card
-                                </button>
-                                <button 
                                   onClick={() => navigate(`/report/${u.id}`)}
                                   className="inline-flex items-center gap-1 px-3 py-1.5 bg-violet-50 hover:bg-violet-100 text-violet-700 rounded text-xs font-bold transition-colors"
                                 >
-                                  <FileText className="w-3 h-3" /> View Report
+                                  <FileText className="w-3 h-3" /> Generate Report
                                 </button>
                               </>
                             )}
@@ -1930,67 +1914,19 @@ export default function AdminDashboard() {
 
             {filteredCceStudents.length > 0 ? (
               <div className="space-y-4 print-report-container class-report-print">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 print:hidden">
-                  <div>
-                    <h4 className="font-black text-slate-900 uppercase tracking-widest text-sm">
-                      {reportType === 'all' ? 'Master Roster' : reportType === 'cce' ? 'Academic Master' : `${reportType} Master`}
-                      <span className="text-slate-400 ml-2 font-bold">: Grade {cceClassFilters.classGrade} - {cceClassFilters.section || 'All Sections'}</span>
-                    </h4>
-                    <p className="text-xs text-slate-500 font-medium mt-0.5">
-                      Admin can download the report card for any student, including pending/provisional assessments.
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button 
-                      onClick={downloadPendingReportsExcel} 
-                      className="flex items-center gap-1.5 text-xs font-black text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-3.5 py-2 rounded-xl transition-all shadow-xs"
-                      title="Download summary spreadsheet of all students with pending assessments"
-                    >
-                      <Download className="w-3.5 h-3.5 text-amber-700" /> Export Pending Summary ({pendingCount})
+                <div className="flex justify-between items-center mb-4 print:hidden">
+                  <h4 className="font-black text-slate-900 uppercase tracking-widest text-sm">
+                    {reportType === 'all' ? 'Master Roster' : reportType === 'cce' ? 'Academic Master' : `${reportType} Master`}
+                    <span className="text-slate-400 ml-2 font-bold">: Grade {cceClassFilters.classGrade} - {cceClassFilters.section || 'All Sections'}</span>
+                  </h4>
+                  <div className="flex gap-2">
+                    <button onClick={exportToExcel} className="flex items-center gap-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-lg transition-colors shadow-sm">
+                      <FileSpreadsheet className="w-4 h-4" /> Export to Excel
                     </button>
-                    <button onClick={exportToExcel} className="flex items-center gap-1.5 text-xs font-black text-white bg-emerald-600 hover:bg-emerald-700 px-3.5 py-2 rounded-xl transition-all shadow-xs">
-                      <FileSpreadsheet className="w-3.5 h-3.5" /> Export Excel
-                    </button>
-                    <button onClick={() => window.print()} className="flex items-center gap-1.5 text-xs font-black text-white bg-blue-700 hover:bg-blue-800 px-3.5 py-2 rounded-xl transition-all shadow-xs">
-                      <Printer className="w-3.5 h-3.5" /> Print Master
+                    <button onClick={() => window.print()} className="flex items-center gap-2 text-sm font-bold text-white bg-blue-700 hover:bg-blue-800 px-4 py-2 rounded-lg transition-colors shadow-sm">
+                      <Printer className="w-4 h-4" /> Print Master Sheet
                     </button>
                   </div>
-                </div>
-
-                {/* Status Filter Tabs */}
-                <div className="flex flex-wrap items-center gap-2 mb-4 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 w-fit print:hidden">
-                  <button
-                    onClick={() => setReportStatusFilter('all')}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all ${
-                      reportStatusFilter === 'all' 
-                        ? 'bg-white text-slate-900 shadow-xs' 
-                        : 'text-slate-500 hover:text-slate-900'
-                    }`}
-                  >
-                    All Students ({filteredCceStudents.length})
-                  </button>
-                  <button
-                    onClick={() => setReportStatusFilter('pending')}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
-                      reportStatusFilter === 'pending' 
-                        ? 'bg-amber-500 text-white shadow-xs' 
-                        : 'text-amber-800 hover:bg-amber-50'
-                    }`}
-                  >
-                    <Clock className="w-3.5 h-3.5" />
-                    <span>Pending Reports ({pendingCount})</span>
-                  </button>
-                  <button
-                    onClick={() => setReportStatusFilter('complete')}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
-                      reportStatusFilter === 'complete' 
-                        ? 'bg-emerald-600 text-white shadow-xs' 
-                        : 'text-emerald-800 hover:bg-emerald-50'
-                    }`}
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Complete ({completeCount})</span>
-                  </button>
                 </div>
 
                 {/* Printable Official Header */}
@@ -2068,7 +2004,7 @@ export default function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white print:divide-slate-300">
-                      {displayedStudents.map(({ student, isComplete, isPending }) => {
+                      {filteredCceStudents.map(student => {
                         const studentMarks = cceMarks.filter(m => m.studentId === student.id);
                         const totalScore = studentMarks.reduce((sum, m) => sum + (m.score === 'Ab' ? 0 : Number(m.score) || 0), 0);
                         const totalMax = studentMarks.reduce((sum, m) => sum + m.maxScore, 0);
@@ -2096,7 +2032,23 @@ export default function AdminDashboard() {
                           })()
                         ])).sort();
 
-                        const isStudentComplete = isComplete;
+                        const month = settings.reportMonth || settings.currentAssessmentMonth || 'August';
+                        const requiredCategories = settings.assessmentCategories || [];
+                        const mentorId = student.mentorId;
+                        const studentAssessments = assessments.filter(a => a.studentId === student.id && matchesMonth(a.month, month));
+                        const teacherAssessments = studentAssessments.filter(a => a.assessorId === mentorId);
+                        const selfAssessments = studentAssessments.filter(a => a.assessorId === student.id);
+                        const teacherAssessedCategories = new Set(teacherAssessments.map(a => a.category));
+                        const selfAssessedCategories = new Set(selfAssessments.map(a => a.category));
+                        const assessmentsCompleted = studentAssessments.length > 0 || requiredCategories.every(cat => 
+                          teacherAssessedCategories.has(cat) || selfAssessedCategories.has(cat)
+                        );
+                        const studentTemplates = taskTemplates.filter(t => String(t.classGrade) === String(student.classGrade) && matchesMonth(t.month, month));
+                        const completedTasks = studentTasks.filter(t => t.studentId === student.id && t.completed && matchesMonth(t.month, month));
+                        const tasksCompleted = studentTemplates.length === 0 || completedTasks.length > 0 || studentTemplates.every(template => 
+                          completedTasks.some(t => t.templateId === template.id)
+                        );
+                        const isStudentComplete = assessmentsCompleted && tasksCompleted;
 
                         return (
                           <tr key={student.id} className="hover:bg-slate-50 transition-colors group">
@@ -2107,17 +2059,9 @@ export default function AdminDashboard() {
                                   Adm: {student.admissionNumber || 'N/A'}
                                 </span>
                               </div>
-                              <div className="mt-1 flex items-center gap-1 print:hidden">
-                                {isComplete ? (
-                                  <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-tight text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
-                                    <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> Complete
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-tight text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded" title="Assessments incomplete. Provisional monthly CCE report available.">
-                                    <Clock className="w-2.5 h-2.5 text-amber-600" /> Pending CCE
-                                  </span>
-                                )}
-                              </div>
+                              <span className={`block text-[8px] font-bold uppercase tracking-tighter mt-1 print:hidden ${isStudentComplete ? 'text-green-600' : 'text-rose-600'}`}>
+                                {isStudentComplete ? 'Complete' : 'Incomplete'}
+                              </span>
                             </td>
                             {/* ID Column Removed - Merged into first column */}
                             
@@ -2191,39 +2135,14 @@ export default function AdminDashboard() {
                               })
                             )}
 
-                            <td className="px-4 py-3 text-right print:hidden whitespace-nowrap">
-                              <div className="flex items-center justify-end gap-1.5">
-                                <button 
-                                  onClick={() => navigate(`/report/${student.id}?download=true`)} 
-                                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all shadow-xs ${
-                                    isPending 
-                                      ? 'bg-amber-500 hover:bg-amber-600 text-white' 
-                                      : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                                  }`}
-                                  title={isPending ? "Download provisional report card with verified CCE marks for this month" : "Download official report card"}
-                                >
-                                  <Download className="w-3.5 h-3.5" />
-                                  <span>{isPending ? 'Download Pending Card' : 'Download Card'}</span>
-                                </button>
-                                <button 
-                                  onClick={() => navigate(`/report/${student.id}`)} 
-                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors"
-                                  title="View report card preview"
-                                >
-                                  <Eye className="w-3.5 h-3.5" /> View
-                                </button>
-                              </div>
+                            <td className="px-6 py-4 text-right print:hidden">
+                              <button onClick={() => navigate(`/report/${student.id}`)} className="text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1">
+                                <FileText className="w-4 h-4" /> View
+                              </button>
                             </td>
                           </tr>
                         );
                       })}
-                      {displayedStudents.length === 0 && (
-                        <tr>
-                          <td colSpan={30} className="px-6 py-12 text-center text-slate-400 font-bold text-xs uppercase">
-                            No {reportStatusFilter === 'all' ? '' : reportStatusFilter} students found for this class & section.
-                          </td>
-                        </tr>
-                      )}
                     </tbody>
                   </table>
                 </div>

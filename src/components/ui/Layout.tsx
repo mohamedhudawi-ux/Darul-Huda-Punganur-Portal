@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../../lib/store';
-import { LogOut, LayoutDashboard, Settings, FileText, CheckSquare, ChevronDown, Download, Menu, X, Smartphone, Sparkles, Cloud, CloudOff, RefreshCw, Users, BookOpen, Printer, History, HelpCircle, Play, ChevronRight, GraduationCap, Trophy, ShieldCheck } from 'lucide-react';
+import { LogOut, LayoutDashboard, Settings, FileText, CheckSquare, ChevronDown, Download, Menu, X, Smartphone, Sparkles, Cloud, CloudOff, RefreshCw, Users, BookOpen, Printer, History, HelpCircle, Play, ChevronRight, GraduationCap, Trophy, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { InstallModal } from './InstallModal';
 import { motion, AnimatePresence } from 'motion/react';
@@ -55,10 +55,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const NavItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: string }) => {
     const fullPath = location.pathname + location.search;
-    const isActive = fullPath === to || (to === '/admin' && fullPath.startsWith('/admin?')) || (to === '/teacher' && fullPath.startsWith('/teacher')) || (to === '/student' && fullPath.startsWith('/student'));
     
-    // For admin, if we are on /admin without a tab, the first item should be active if it matches the default
-    const isActuallyActive = isActive || (to === '/admin?tab=users' && fullPath === '/admin');
+    // Check active path accurately
+    let isActuallyActive = false;
+    if (to.includes('?')) {
+      isActuallyActive = fullPath === to;
+    } else {
+      if (to === '/admin') {
+        isActuallyActive = fullPath === '/admin' || fullPath === '/admin?tab=overview';
+      } else if (to === '/teacher') {
+        isActuallyActive = fullPath === '/teacher' || fullPath === '/teacher?tab=dashboard';
+      } else if (to === '/student') {
+        isActuallyActive = fullPath === '/student' || fullPath === '/student?tab=overview';
+      } else {
+        isActuallyActive = fullPath === to;
+      }
+    }
 
     return (
       <button 
@@ -140,10 +152,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
               )}
               {currentUser.role === 'teacher' && (
                 <>
-                  <div className="pt-4 pb-2 px-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Mentorship</div>
-                  <NavItem to="/teacher?tab=assessments" icon={CheckSquare} label="Assessment Grid" />
+                  <div className="pt-4 pb-2 px-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Mentorship & CCE</div>
                   <NavItem to="/teacher?tab=cce" icon={BookOpen} label="CCE Marks Entry" />
-                  <NavItem to="/teacher?tab=activities" icon={Trophy} label="Activity Center" />
+                  <NavItem to="/teacher?tab=cce-status" icon={CheckCircle2} label="CCE Status" />
+                  <NavItem to="/teacher?tab=assessments" icon={CheckSquare} label="Mentee Assessments" />
+                  <NavItem to="/teacher?tab=activities" icon={Trophy} label="Activity Centre" />
                   
                   <div className="pt-4 pb-2 px-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Resources</div>
                   <NavItem to="/teacher?tab=help" icon={HelpCircle} label="Help & FAQ" />

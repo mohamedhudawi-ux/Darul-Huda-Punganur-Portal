@@ -11,6 +11,8 @@ import AdminDashboard from './pages/AdminDashboard';
 import TeacherDashboard from './pages/TeacherDashboard';
 import StudentDashboard from './pages/StudentDashboard';
 import ReportCard from './pages/ReportCard';
+import SuperAdminDashboard from './pages/SuperAdminDashboard';
+import CampusRegistration from './pages/CampusRegistration';
 
 function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode, allowedRoles: string[] }) {
   const { currentUser } = useStore();
@@ -54,7 +56,7 @@ function AppRoutes() {
             <p className="text-slate-500 text-sm mt-2 leading-relaxed">
               {showSlowMessage 
                 ? 'Cloud sync is slow. You can wait or proceed in offline mode.' 
-                : 'Connecting to Grand Campus Portal...'}
+                : 'Connecting to Campus SaaS Platform...'}
             </p>
           </div>
           <div className="flex flex-col gap-3 w-full">
@@ -82,7 +84,15 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={!currentUser ? <Login /> : <Navigate to={`/${currentUser.role}`} replace />} />
+      <Route path="/register" element={<CampusRegistration />} />
+      <Route path="/campus/:slug" element={<CampusRegistration />} />
       
+      <Route path="/super_admin/*" element={
+        <ProtectedRoute allowedRoles={['super_admin']}>
+          <SuperAdminDashboard />
+        </ProtectedRoute>
+      } />
+
       <Route path="/admin/*" element={
         <ProtectedRoute allowedRoles={['admin']}>
           <AdminDashboard />
@@ -102,7 +112,7 @@ function AppRoutes() {
       } />
 
       <Route path="/report/:studentId" element={
-        <ProtectedRoute allowedRoles={['admin', 'teacher', 'student']}>
+        <ProtectedRoute allowedRoles={['admin', 'teacher', 'student', 'super_admin']}>
           <ReportCard />
         </ProtectedRoute>
       } />
