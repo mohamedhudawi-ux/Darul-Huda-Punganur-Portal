@@ -662,20 +662,20 @@ export function CCEMarksManager() {
             </table>
           </div>
 
-          {/* Sticky Save Bar */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-900 text-white p-4 rounded-2xl shadow-xl">
+          {/* Sticky Save Bar: Clean Light Theme */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white text-slate-900 p-4 rounded-2xl shadow-md border border-slate-200">
             <div>
-              <p className="text-xs font-black uppercase tracking-wider text-indigo-300">
+              <p className="text-xs font-black uppercase tracking-wider text-indigo-700">
                 Ready to Commit Scores
               </p>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Saving will record marks for <strong>{selectedAssessment}</strong> in <strong>{cceClassFilters.subject}</strong>.
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Saving will record marks for <strong className="text-slate-800">{selectedAssessment}</strong> in <strong className="text-slate-800">{cceClassFilters.subject}</strong>.
               </p>
             </div>
 
             <button
               type="submit"
-              className="w-full sm:w-auto px-8 py-3.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-indigo-500/30 flex items-center justify-center gap-2 active:scale-95"
+              className="w-full sm:w-auto px-8 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all shadow-md shadow-indigo-200 flex items-center justify-center gap-2 active:scale-95"
             >
               <Check className="w-4 h-4 stroke-[3]" />
               <span>Save Marks for {selectedAssessment}</span>

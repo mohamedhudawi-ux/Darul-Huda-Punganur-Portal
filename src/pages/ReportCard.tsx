@@ -467,17 +467,17 @@ export default function ReportCard() {
                             {mark.subject}
                           </td>
                           <td className="px-2.5 py-2 text-right font-medium text-slate-600 print:py-2.5 print:px-4">
-                            {mark.allAbsent ? (
-                              <span className="text-rose-600 font-black">Ab</span>
+                            {mark.allAbsent || mark.totalScore === 0 ? (
+                              <span className="text-yellow-900 bg-yellow-200 px-2 py-0.5 rounded font-black">Ab / 0</span>
                             ) : (
                               <>
                                 {mark.totalScore}/{mark.totalMax}
-                                {mark.hasAbsent && <span className="ml-1 text-[8px] text-rose-500 font-bold">(Ab)</span>}
+                                {mark.hasAbsent && <span className="ml-1 text-[8px] text-yellow-800 bg-yellow-200 px-1 rounded font-bold">(Ab)</span>}
                               </>
                             )}
                           </td>
                           <td className="px-2.5 py-2 text-right font-black text-slate-900 print:py-2.5 print:px-4">
-                            {mark.allAbsent ? '0.0' : mark.outOf30.toFixed(1)}
+                            {mark.allAbsent || mark.totalScore === 0 ? '0.0' : mark.outOf30.toFixed(1)}
                           </td>
                           <td className="px-3.5 py-2 text-right font-black text-blue-800 print:py-2.5 print:px-4">
                             {grade.label}
@@ -487,8 +487,8 @@ export default function ReportCard() {
                     })
                   ) : (
                     <tr>
-                      <td colSpan={4} className="px-3 py-6 text-center text-slate-400 font-bold uppercase text-[9px] print:text-[11px] print:py-12">
-                        No CCE marks recorded for this period
+                      <td colSpan={4} className="px-3 py-6 text-center text-yellow-900 bg-yellow-100 font-bold uppercase text-[9px] print:text-[11px] print:py-12">
+                        Incomplete CCE
                       </td>
                     </tr>
                   )}
@@ -651,17 +651,17 @@ export default function ReportCard() {
                             {mark.subject}
                           </td>
                           <td className="px-2 py-1.5 text-right font-medium text-slate-600 print:py-2.5 print:px-4">
-                            {mark.allAbsent ? (
-                              <span className="text-rose-600 font-black">Ab</span>
+                            {mark.allAbsent || mark.totalScore === 0 ? (
+                              <span className="text-yellow-900 bg-yellow-200 px-2 py-0.5 rounded font-black">Ab / 0</span>
                             ) : (
                               <>
                                 {mark.totalScore}/{mark.totalMax}
-                                {mark.hasAbsent && <span className="ml-1 text-[8px] text-rose-500 font-bold">(Ab)</span>}
+                                {mark.hasAbsent && <span className="ml-1 text-[8px] text-yellow-800 bg-yellow-200 px-1 rounded font-bold">(Ab)</span>}
                               </>
                             )}
                           </td>
                           <td className="px-2 py-1.5 text-right font-black text-slate-900 print:py-2.5 print:px-4">
-                            {mark.allAbsent ? '0.0' : mark.outOf30.toFixed(1)}
+                            {mark.allAbsent || mark.totalScore === 0 ? '0.0' : mark.outOf30.toFixed(1)}
                           </td>
                           <td className="px-3 py-1.5 text-right font-black text-blue-800 print:py-2.5 print:px-4">
                             {grade.label}
@@ -671,8 +671,8 @@ export default function ReportCard() {
                     })
                   ) : (
                     <tr>
-                      <td colSpan={4} className="px-3 py-6 text-center text-slate-400 font-bold uppercase text-[9px] print:text-[11px] print:py-12">
-                        No CCE marks recorded for this period
+                      <td colSpan={4} className="px-3 py-6 text-center text-yellow-900 bg-yellow-100 font-bold uppercase text-[9px] print:text-[11px] print:py-12">
+                        Incomplete CCE
                       </td>
                     </tr>
                   )}

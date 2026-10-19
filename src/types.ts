@@ -3,7 +3,9 @@ export type Role = 'super_admin' | 'admin' | 'teacher' | 'student';
 export interface Campus {
   id: string;
   slug: string;
-  name: string;
+  domain?: string; // Virtual or custom domain e.g. college-name.grandcampus.edu
+  name: string; // Institution / College Name
+  collegeType?: string; // Engineering, Medical, Arts & Science, Polytechnic, School
   logoUrl?: string;
   address?: string;
   adminEmail: string;
@@ -125,6 +127,7 @@ export interface MentorInsight {
 
 export interface SubjectConfig {
   id: string;
+  campusId?: string;
   classGrade: string;
   section?: string;
   name: string;

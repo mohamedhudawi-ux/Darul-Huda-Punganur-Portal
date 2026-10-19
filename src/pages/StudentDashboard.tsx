@@ -24,12 +24,71 @@ export default function StudentDashboard() {
     updateUser, 
     taskTemplates, 
     studentTasks, 
-    cceMarks 
+    cceMarks,
+    subjects
   } = useStore();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const month = settings.reportMonth || settings.currentAssessmentMonth || 'August';
+  
+  // Subjects in order for student's class
+  const studentSubjects = useMemo(() => {
+    const classSubjects = (subjects || []).filter(s => String(s.classGrade) === String(currentUser?.classGrade));
+    if (classSubjects.length > 0) {
+      return classSubjects.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    const fromMarks = Array.from(new Set((cceMarks || []).map(m => m.subject)));
+    if (fromMarks.length > 0) {
+      return fromMarks.sort().map((name, idx) => ({ id: String(idx), classGrade: currentUser?.classGrade || '1', name }));
+    }
+    return [
+      { id: '1', classGrade: currentUser?.classGrade || '1', name: 'Arabic' },
+      { id: '2', classGrade: currentUser?.classGrade || '1', name: 'English' },
+      { id: '3', classGrade: currentUser?.classGrade || '1', name: 'Islamic Studies' },
+      { id: '4', classGrade: currentUser?.classGrade || '1', name: 'Mathematics' },
+      { id: '5', classGrade: currentUser?.classGrade || '1', name: 'Science' },
+      { id: '6', classGrade: currentUser?.classGrade || '1', name: 'Social Studies' }
+    ].sort((a, b) => a.name.localeCompare(b.name));
+  }, [subjects, currentUser?.classGrade, cceMarks]);
+
+  const levels = ['CCE 1', 'CCE 2', 'CCE 3', 'CCE 4', 'Mid Term Exam'];
+
+  const studentCceRows = useMemo(() => {
+    const studentMarks = (cceMarks || []).filter(m => m.studentId === currentUser?.id);
+    const rows: Array<{
+      subject: string;
+      cceLevel: string;
+      mark: typeof cceMarks[0];
+      status: 'scored' | 'ab' | 'zero';
+    }> = [];
+
+    const sortedMarks = [...studentMarks].sort((a, b) => {
+      const subjCompare = a.subject.localeCompare(b.subject);
+      if (subjCompare !== 0) return subjCompare;
+      return a.cceLevel.localeCompare(b.cceLevel);
+    });
+
+    sortedMarks.forEach(mark => {
+      const isAb = mark.score === 'Ab';
+      const isZero = mark.score === 0;
+      let status: 'scored' | 'ab' | 'zero' = 'scored';
+      if (isAb) status = 'ab';
+      else if (isZero) status = 'zero';
+
+      rows.push({
+        subject: mark.subject,
+        cceLevel: mark.cceLevel,
+        mark,
+        status
+      });
+    });
+
+    return rows;
+  }, [cceMarks, currentUser?.id]);
+
+
+
   const studentTemplates = taskTemplates.filter(t => String(t.classGrade) === String(currentUser?.classGrade) && matchesMonth(t.month, month));
   const completedTasks = studentTasks.filter(t => t.studentId === currentUser?.id && t.completed && matchesMonth(t.month, month));
   const tasksCompleted = studentTemplates.length === 0 || completedTasks.length > 0 || studentTemplates.every(template => 
@@ -65,6 +124,21 @@ export default function StudentDashboard() {
   const [cceSearch, setCceSearch] = useState('');
   const [cceFilter, setCceFilter] = useState<'month' | 'all' | 'attended' | 'absent'>(anyAssessmentPending ? 'month' : 'all');
   const [isEditing, setIsEditing] = useState(false);
+
+  const filteredCceRows = useMemo(() => {
+    return studentCceRows.filter(row => {
+      const matchesSearch = row.subject.toLowerCase().includes(cceSearch.toLowerCase()) ||
+                            row.cceLevel.toLowerCase().includes(cceSearch.toLowerCase()) ||
+                            (row.mark?.description || '').toLowerCase().includes(cceSearch.toLowerCase());
+      if (!matchesSearch) return false;
+      if (cceFilter === 'month' && row.mark?.month) {
+        return matchesMonth(row.mark.month, month);
+      }
+      if (cceFilter === 'attended') return row.status === 'scored';
+      if (cceFilter === 'absent') return row.status === 'ab';
+      return true;
+    });
+  }, [studentCceRows, cceSearch, cceFilter, month]);
 
   // Mentor details
   const mentor = users.find(u => u.id === currentUser?.mentorId);
@@ -548,13 +622,13 @@ export default function StudentDashboard() {
                 </div>
               )}
 
-              {/* Table of CCEs */}
-              {filteredCceMarks.length > 0 ? (
+              {/* Table of CCEs (All subjects in order, marks or yellow for Ab/0 or Incomplete CCE for blanks) */}
+              {filteredCceRows.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
-                      <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-400 uppercase tracking-wider font-black text-[10px]">
-                        <th className="px-5 py-3.5">Subject</th>
+                      <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 uppercase tracking-wider font-black text-[10px]">
+                        <th className="px-5 py-3.5">Subject (Ordered)</th>
                         <th className="px-4 py-3.5">Evaluation</th>
                         <th className="px-5 py-3.5">What CCE Was Given (Topic / Portion)</th>
                         <th className="px-4 py-3.5 text-center">Score / Status</th>
@@ -562,31 +636,36 @@ export default function StudentDashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {filteredCceMarks.map(m => {
-                        const isAb = m.score === 'Ab';
-                        const pct = !isAb && typeof m.score === 'number' && m.maxScore > 0 ? Math.round((m.score / m.maxScore) * 100) : 0;
+                      {filteredCceRows.map((row, idx) => {
+                        const { subject, cceLevel, mark, status } = row;
+                        const isAb = status === 'ab';
+                        const isZero = status === 'zero';
+                        const isIncomplete = status === 'incomplete';
+                        const score = mark?.score;
+                        const maxScore = mark?.maxScore || 25;
+                        const pct = !isAb && !isIncomplete && typeof score === 'number' && maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
 
                         return (
-                          <tr key={m.id} className="hover:bg-slate-50/80 transition-colors">
+                          <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
                             <td className="px-5 py-4 font-black text-slate-900">
                               <div className="flex items-center gap-2.5">
                                 <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center font-black text-xs">
-                                  {m.subject.charAt(0)}
+                                  {subject.charAt(0)}
                                 </div>
-                                <span className="text-slate-900 font-bold">{m.subject}</span>
+                                <span className="text-slate-900 font-bold">{subject}</span>
                               </div>
                             </td>
                             <td className="px-4 py-4 font-bold text-slate-700">
                               <span className="px-2.5 py-1 bg-slate-100 border border-slate-200 rounded-lg text-[11px] font-extrabold text-slate-800">
-                                {m.cceLevel}
+                                {cceLevel}
                               </span>
                             </td>
                             <td className="px-5 py-4">
-                              {m.description ? (
+                              {mark?.description ? (
                                 <div className="flex items-start gap-2 max-w-md">
                                   <PenLine className="w-3.5 h-3.5 text-indigo-600 shrink-0 mt-0.5" />
                                   <span className="font-semibold text-slate-800 leading-relaxed text-xs">
-                                    {m.description}
+                                    {mark.description}
                                   </span>
                                 </div>
                               ) : (
@@ -595,18 +674,28 @@ export default function StudentDashboard() {
                             </td>
                             <td className="px-4 py-4 text-center">
                               {isAb ? (
-                                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-rose-50 text-rose-700 border border-rose-200 font-black text-xs">
-                                  <AlertTriangle className="w-3 h-3 text-rose-500" /> Absent (Ab)
+                                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-amber-100 text-amber-800 border border-amber-300 font-black text-xs shadow-2xs">
+                                  <AlertTriangle className="w-3 h-3 text-amber-600" /> Absent (Ab)
+                                </span>
+                              ) : isZero ? (
+                                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-amber-100 text-amber-800 border border-amber-300 font-black text-xs shadow-2xs">
+                                  0 / {maxScore} (Yellow)
+                                </span>
+                              ) : isIncomplete ? (
+                                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 font-bold text-xs shadow-2xs">
+                                  <Clock className="w-3 h-3 text-amber-600" /> Incomplete CCE
                                 </span>
                               ) : (
                                 <div className="font-black text-slate-900 text-sm">
-                                  {m.score} <span className="text-slate-400 font-normal text-xs">/ {m.maxScore}</span>
+                                  {score} <span className="text-slate-400 font-normal text-xs">/ {maxScore}</span>
                                 </div>
                               )}
                             </td>
                             <td className="px-4 py-4 text-right">
-                              {isAb ? (
-                                <span className="text-rose-500 font-bold text-xs">0%</span>
+                              {isIncomplete ? (
+                                <span className="text-amber-600 font-bold text-xs">Incomplete CCE</span>
+                              ) : isAb || isZero ? (
+                                <span className="text-amber-700 font-bold text-xs bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-300">0% (Yellow)</span>
                               ) : (
                                 <div className="inline-flex items-center gap-2 justify-end">
                                   <div className="w-16 h-2 bg-slate-100 rounded-full overflow-hidden hidden sm:block">
@@ -628,44 +717,10 @@ export default function StudentDashboard() {
               ) : (
                 <div className="text-center py-12 bg-slate-50/50">
                   <BookOpen className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                  <p className="text-sm font-bold text-slate-700">No CCE records matching your criteria.</p>
+                  <p className="text-sm font-bold text-slate-700">No CCE records found for your class subjects.</p>
                   <p className="text-xs text-slate-400 mt-1">Evaluations logged by faculty will automatically appear here with their portions.</p>
                 </div>
               )}
-            </div>
-
-            {/* OFFICIAL REPORT CARD ACTION CARD */}
-            <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-xl border border-white/10">
-              <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div className="space-y-2 max-w-xl">
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-indigo-300 text-[10px] font-black uppercase tracking-wider">
-                    <FileText className="w-3.5 h-3.5" /> Official Cumulative Transcript
-                  </div>
-                  <h3 className="text-2xl font-black text-white tracking-tight">
-                    Digital Academic Report Card (ARC) — {currentUser?.name}
-                  </h3>
-                  <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
-                    View your verified grade card containing Academic CCE, faculty holistic wellbeing scores, attendance percentage, and teacher remarks.
-                  </p>
-                  {anyAssessmentPending && (
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-500/20 border border-blue-400/30 rounded-xl text-blue-200 text-xs font-bold mt-2">
-                      <Clock className="w-3.5 h-3.5 text-blue-300" />
-                      <span>Assessments in progress. Report card shows only the verified CCE marks for {month}.</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex flex-col sm:flex-row items-center gap-3">
-                  <button 
-                    onClick={() => navigate(`/report/${currentUser?.id}`)}
-                    className="w-full sm:w-auto px-6 py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 active:scale-95"
-                  >
-                    <FileText className="w-4 h-4" />
-                    <span>Open Report Card</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
         )}

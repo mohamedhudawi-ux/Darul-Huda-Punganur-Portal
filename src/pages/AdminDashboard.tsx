@@ -497,17 +497,15 @@ export default function AdminDashboard() {
 
   const isFilterOrSearchActive = dirSearchQuery.trim() !== '' || dirClassFilter !== '' || dirSectionFilter !== '' || dirRoleFilter !== 'all';
 
-  const visibleUsers = isFilterOrSearchActive 
-    ? allVisibleUsers.filter(u => {
-        const matchesSearch = dirSearchQuery === '' || 
-          (u.name || '').toLowerCase().includes(dirSearchQuery.toLowerCase()) || 
-          (u.admissionNumber && (u.admissionNumber || '').toLowerCase().includes(dirSearchQuery.toLowerCase()));
-        const matchesClass = dirClassFilter === '' || u.classGrade === dirClassFilter;
-        const matchesSection = dirSectionFilter === '' || u.section === dirSectionFilter;
-        const matchesRole = dirRoleFilter === 'all' || u.role === dirRoleFilter;
-        return matchesSearch && matchesClass && matchesSection && matchesRole;
-      })
-    : [];
+  const visibleUsers = allVisibleUsers.filter(u => {
+    const matchesSearch = dirSearchQuery === '' || 
+      (u.name || '').toLowerCase().includes(dirSearchQuery.toLowerCase()) || 
+      (u.admissionNumber && (u.admissionNumber || '').toLowerCase().includes(dirSearchQuery.toLowerCase()));
+    const matchesClass = dirClassFilter === '' || u.classGrade === dirClassFilter;
+    const matchesSection = dirSectionFilter === '' || u.section === dirSectionFilter;
+    const matchesRole = dirRoleFilter === 'all' || u.role === dirRoleFilter;
+    return matchesSearch && matchesClass && matchesSection && matchesRole;
+  });
   
   const handleToggleUserSelection = (userId: string) => {
     const newSelection = new Set(selectedUserIds);
@@ -582,20 +580,26 @@ export default function AdminDashboard() {
     <Layout>
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 print:hidden">
-          <div>
-            <div className="flex flex-wrap items-center gap-2 mb-2">
-              {currentUser?.admissionNumber && (
-                <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-black uppercase tracking-widest">
-                  ID: {currentUser.admissionNumber}
-                </div>
-              )}
+          <div className="flex items-center gap-4">
+            {settings?.logoUrl && (
+              <img src={settings.logoUrl} alt="Campus Logo" className="w-12 h-12 rounded-xl object-cover border border-slate-200 shadow-sm" />
+            )}
+            <div>
+              <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+                {settings?.name || 'Grand Campus Portal'}
+              </h1>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                Welcome, {currentUser?.name || 'Administrator'}
+              </p>
             </div>
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight">
-              {currentUser?.name || 'Command Center'}
-            </h2>
           </div>
           
           <div className="flex items-center gap-3">
+              {currentUser?.admissionNumber && (
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-black uppercase tracking-widest">
+                  Staff ID: {currentUser.admissionNumber}
+                </div>
+              )}
             <button 
               onClick={() => setActiveTab('settings')}
               className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-all shadow-sm"
@@ -1051,13 +1055,7 @@ export default function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {!isFilterOrSearchActive ? (
-                      <tr>
-                        <td colSpan={4} className="px-6 py-12 text-center text-slate-400 text-xs italic bg-slate-50/50">
-                          Student and teacher names are hidden by default. Please enter a search query or select a class filter above to view candidates.
-                        </td>
-                      </tr>
-                    ) : visibleUsers.length === 0 ? (
+                    {visibleUsers.length === 0 ? (
                       <tr>
                         <td colSpan={4} className="px-6 py-12 text-center text-slate-500 bg-slate-50/50 italic">
                           No matching candidates found.

@@ -3,13 +3,16 @@ import { useStore } from '../lib/store';
 import { Layout } from '../components/ui/Layout';
 import { 
   Building2, Users, CreditCard, ShieldCheck, CheckCircle2, AlertTriangle, 
-  Search, Plus, Trash2, Edit, Send, History, DollarSign, Globe, Check, X, ArrowUpRight 
+  Search, Plus, Trash2, Edit, Send, History, IndianRupee, Globe, Check, X, ArrowUpRight,
+  Copy, ExternalLink, Eye, School, Lock, Phone, Mail, MapPin, Sparkles, LogIn
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Campus } from '../types';
 
 export default function SuperAdminDashboard() {
   const { 
     campuses, 
+    allCampuses,
     updateCampusStatus, 
     updateCampusSubscription, 
     subscriptionPlans, 
@@ -19,13 +22,24 @@ export default function SuperAdminDashboard() {
     auditLogs, 
     platformAnnouncements, 
     sendPlatformAnnouncement,
-    users 
+    users,
+    allUsers,
+    inspectCampus,
+    updateCampus,
+    settings,
+    updateSettings
   } = useStore();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<'campuses' | 'plans' | 'payments' | 'announcements' | 'logs'>('campuses');
+  const [activeTab, setActiveTab] = useState<'campuses' | 'plans' | 'payments' | 'announcements' | 'logs' | 'settings'>('campuses');
   const [searchQuery, setSearchQuery] = useState('');
+  const [appLogoUrl, setAppLogoUrl] = useState(settings?.logoUrl || '/favicon.png');
+  const [appName, setAppName] = useState(settings?.name || 'Grand Campus Assurance Portal');
   
+  // Campus Full Details & Domain Inspector Modal State
+  const [selectedCampusDetails, setSelectedCampusDetails] = useState<Campus | null>(null);
+  const [copiedDomain, setCopiedDomain] = useState(false);
+
   // New Plan Modal State
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
   const [planName, setPlanName] = useState('');
@@ -46,33 +60,36 @@ export default function SuperAdminDashboard() {
   const [annMessage, setAnnMessage] = useState('');
   const [annTarget, setAnnTarget] = useState('all');
 
-  const filteredCampuses = campuses.filter(c => 
+  const targetCampuses = allCampuses && allCampuses.length > 0 ? allCampuses : campuses;
+  const filteredCampuses = targetCampuses.filter(c => 
     c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
     c.slug.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.adminEmail.toLowerCase().includes(searchQuery.toLowerCase())
+    c.adminEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (c.domain && c.domain.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const totalStudents = users.filter(u => u.role === 'student').length * (campuses.length || 1);
-  const totalStaff = users.filter(u => u.role === 'teacher' || u.role === 'admin').length * (campuses.length || 1);
-  const totalRevenue = payments.reduce((acc, p) => acc + (p.status === 'success' ? p.amount : 0), 12500); // Base mock revenue
+  const targetUsers = allUsers && allUsers.length > 0 ? allUsers : users;
+  const totalStudents = targetUsers.filter(u => u.role === 'student').length;
+  const totalStaff = targetUsers.filter(u => u.role === 'teacher' || u.role === 'admin').length;
+  const totalRevenue = payments.reduce((acc, p) => acc + (p.status === 'success' ? p.amount : 0), 29998); // Base INR revenue
 
   const handleCreatePlan = (e: React.FormEvent) => {
     e.preventDefault();
     addSubscriptionPlan({
       name: planName,
-      priceMonthly: parseFloat(priceMonthly) || 49,
-      priceAnnual: parseFloat(priceAnnual) || 490,
+      priceMonthly: parseFloat(priceMonthly) || 4999,
+      priceAnnual: parseFloat(priceAnnual) || 49990,
       maxStudents: parseInt(maxStudents) || 500,
       maxStaff: parseInt(maxStaff) || 50,
       storageLimitGb: 50,
-      features: ['All core modules', 'Isolated database', 'Standard support'],
+      features: ['All core modules', 'Isolated database', 'Standard support', 'Dedicated Domain'],
       description
     });
     setPlanName('');
     setPriceMonthly('');
     setPriceAnnual('');
     setIsPlanModalOpen(false);
-    alert('Subscription plan created successfully!');
+    alert('Subscription plan created successfully in Rupees (₹)!');
   };
 
   const handleUpdatePlan = (e: React.FormEvent) => {
@@ -83,7 +100,7 @@ export default function SuperAdminDashboard() {
       priceAnnual: parseFloat(editPriceAnnual) || editingPlan.priceAnnual
     });
     setEditingPlan(null);
-    alert('Subscription plan amount updated successfully!');
+    alert('Subscription plan amount updated successfully in Rupees (₹)!');
   };
 
   const handleSendAnnouncement = (e: React.FormEvent) => {
@@ -170,11 +187,11 @@ export default function SuperAdminDashboard() {
           <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs flex items-center justify-between">
             <div>
               <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">Platform Revenue</p>
-              <h3 className="text-2xl font-black text-slate-900 mt-1">${totalRevenue.toLocaleString()}</h3>
-              <p className="text-[11px] text-emerald-600 font-bold mt-1">+18% this month</p>
+              <h3 className="text-2xl font-black text-slate-900 mt-1">₹{totalRevenue.toLocaleString('en-IN')}</h3>
+              <p className="text-[11px] text-emerald-600 font-bold mt-1">+18% this month (INR)</p>
             </div>
             <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
-              <DollarSign className="w-6 h-6" />
+              <IndianRupee className="w-6 h-6" />
             </div>
           </div>
 
@@ -232,6 +249,14 @@ export default function SuperAdminDashboard() {
           >
             Audit Logs
           </button>
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+              activeTab === 'settings' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            App Branding & Logo
+          </button>
         </div>
 
         {/* TAB 1: CAMPUSES MANAGEMENT */}
@@ -239,15 +264,15 @@ export default function SuperAdminDashboard() {
           <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden space-y-4">
             <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
-                <h3 className="text-lg font-black text-slate-900">Registered Campuses & Tenants</h3>
-                <p className="text-xs text-slate-500">Approve, suspend, or manage subscription statuses for independent campus accounts.</p>
+                <h3 className="text-lg font-black text-slate-900">Registered Campuses & College Domains</h3>
+                <p className="text-xs text-slate-500">Inspect full college details, manage domains, approve or suspend accounts, and view tenant stats.</p>
               </div>
 
-              <div className="relative w-full sm:w-72">
+              <div className="relative w-full sm:w-80">
                 <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Search campus or email..."
+                  placeholder="Search college, domain, email..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
@@ -259,9 +284,10 @@ export default function SuperAdminDashboard() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50/50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                    <th className="px-6 py-4">Institution & Slug</th>
+                    <th className="px-6 py-4">Institution & Domain</th>
                     <th className="px-6 py-4">Administrator</th>
-                    <th className="px-6 py-4">Plan & Subscription</th>
+                    <th className="px-6 py-4">Plan (₹ INR)</th>
+                    <th className="px-6 py-4">Students</th>
                     <th className="px-6 py-4">Status</th>
                     <th className="px-6 py-4 text-right">Actions</th>
                   </tr>
@@ -269,11 +295,26 @@ export default function SuperAdminDashboard() {
                 <tbody className="divide-y divide-slate-50 text-xs">
                   {filteredCampuses.map(campus => {
                     const plan = subscriptionPlans.find(p => p.id === campus.subscriptionPlanId);
+                    const domainUrl = campus.domain || `${campus.slug}.grandcampus.edu`;
+                    const campusStudents = targetUsers.filter(u => u.role === 'student' && u.campusId === campus.id);
+                    
                     return (
-                      <tr key={campus.id} className="hover:bg-slate-50/50 transition-colors">
+                      <tr key={campus.id} className="hover:bg-indigo-50/30 transition-colors group">
                         <td className="px-6 py-4">
-                          <div className="font-black text-slate-900 text-sm">{campus.name}</div>
-                          <div className="text-[11px] text-slate-400 font-mono">/campus/{campus.slug}</div>
+                          <div className="flex items-center gap-2">
+                            <div className="font-black text-slate-900 text-sm group-hover:text-indigo-600 transition-colors">
+                              {campus.name}
+                            </div>
+                            {campus.collegeType && (
+                              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                                {campus.collegeType}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-indigo-600 font-mono mt-0.5 flex items-center gap-1">
+                            <Globe className="w-3 h-3 text-indigo-400" />
+                            <span>{domainUrl}</span>
+                          </div>
                         </td>
                         <td className="px-6 py-4">
                           <div className="font-bold text-slate-800">{campus.adminName}</div>
@@ -281,7 +322,20 @@ export default function SuperAdminDashboard() {
                         </td>
                         <td className="px-6 py-4">
                           <div className="font-bold text-indigo-700">{plan?.name || 'Standard Plan'}</div>
-                          <div className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">{campus.subscriptionStatus}</div>
+                          <div className="text-[11px] text-slate-500 font-medium">
+                            ₹{(plan?.priceMonthly || 4999).toLocaleString('en-IN')}/mo • <span className="uppercase text-[10px] font-bold text-slate-400">{campus.subscriptionStatus}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`px-2.5 py-1 rounded-xl text-xs font-black inline-flex items-center gap-1 ${
+                            campusStudents.length === 0 ? 'bg-slate-100 text-slate-500' : 'bg-blue-50 text-blue-700'
+                          }`}>
+                            <Users className="w-3.5 h-3.5" />
+                            {campusStudents.length} {campusStudents.length === 1 ? 'Student' : 'Students'}
+                          </span>
+                          {campusStudents.length === 0 && (
+                            <div className="text-[9px] text-slate-400 mt-0.5 italic">Dashboard Empty</div>
+                          )}
                         </td>
                         <td className="px-6 py-4">
                           <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider inline-block ${
@@ -294,31 +348,41 @@ export default function SuperAdminDashboard() {
                             {campus.status}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-right space-x-2">
+                        <td className="px-6 py-4 text-right space-x-1.5 whitespace-nowrap">
+                          <button
+                            onClick={() => setSelectedCampusDetails(campus)}
+                            className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl font-bold text-xs inline-flex items-center gap-1 border border-indigo-200 transition-all"
+                            title="View Full Details and Domain Access"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Full Details</span>
+                          </button>
                           {campus.status !== 'active' && (
                             <button
                               onClick={() => updateCampusStatus(campus.id, 'active')}
-                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs"
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-xs"
                             >
-                              Approve / Activate
+                              Approve
                             </button>
                           )}
                           {campus.status === 'active' && (
                             <button
                               onClick={() => updateCampusStatus(campus.id, 'suspended')}
-                              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-xs"
+                              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-xs shadow-xs"
                             >
                               Suspend
                             </button>
                           )}
                           <button
                             onClick={() => {
-                              navigate(`/login?campus=${campus.slug}`);
+                              inspectCampus(campus.id);
+                              navigate('/admin');
                             }}
-                            className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-xs inline-flex items-center gap-1"
+                            className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-xs inline-flex items-center gap-1 shadow-xs"
+                            title="Inspect campus dashboard as platform super admin"
                           >
-                            <span>Access</span>
-                            <ArrowUpRight className="w-3 h-3" />
+                            <LogIn className="w-3.5 h-3.5" />
+                            <span>Inspect</span>
                           </button>
                         </td>
                       </tr>
@@ -354,8 +418,8 @@ export default function SuperAdminDashboard() {
                     <h4 className="font-black text-slate-900 text-lg mb-1">{plan.name}</h4>
                     <p className="text-xs text-slate-500 mb-4">{plan.description}</p>
                     <div className="flex items-baseline gap-1 mb-6">
-                      <span className="text-3xl font-black text-slate-900">${plan.priceMonthly}</span>
-                      <span className="text-xs text-slate-400 font-bold">/ month (or ${plan.priceAnnual}/yr)</span>
+                      <span className="text-3xl font-black text-slate-900">₹{plan.priceMonthly.toLocaleString('en-IN')}</span>
+                      <span className="text-xs text-slate-400 font-bold">/ month (or ₹{plan.priceAnnual.toLocaleString('en-IN')}/yr)</span>
                     </div>
 
                     <div className="space-y-2 text-xs text-slate-600 border-t border-slate-100 pt-4">
@@ -419,7 +483,7 @@ export default function SuperAdminDashboard() {
                       <td className="px-6 py-4 font-mono font-bold text-slate-700">{p.id}</td>
                       <td className="px-6 py-4 font-black text-slate-900">{p.campusName}</td>
                       <td className="px-6 py-4 uppercase font-bold text-slate-600">{p.billingCycle}</td>
-                      <td className="px-6 py-4 font-black text-emerald-700">${p.amount} {p.currency}</td>
+                      <td className="px-6 py-4 font-black text-emerald-700">₹{p.amount.toLocaleString('en-IN')} {p.currency}</td>
                       <td className="px-6 py-4">
                         <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full font-bold text-[10px] uppercase">
                           {p.status}
@@ -472,6 +536,68 @@ export default function SuperAdminDashboard() {
           </div>
         )}
 
+        {/* TAB 6: APP BRANDING & LOGO SETTINGS */}
+        {activeTab === 'settings' && (
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8 space-y-6 max-w-2xl">
+            <div>
+              <h3 className="text-xl font-black text-slate-900">Platform Branding & Logo Configuration</h3>
+              <p className="text-xs text-slate-500 mt-1">Configure the global brand name and app logo shown across all portals and headers.</p>
+            </div>
+
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              updateSettings({
+                name: appName,
+                logoUrl: appLogoUrl
+              });
+              alert('Platform branding & logo updated successfully!');
+            }} className="space-y-6 text-xs">
+              <div>
+                <label className="block font-black uppercase tracking-wider text-slate-500 mb-2">Global App / Portal Brand Name</label>
+                <input
+                  type="text"
+                  required
+                  value={appName}
+                  onChange={e => setAppName(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none"
+                  placeholder="Grand Campus Assurance Portal"
+                />
+              </div>
+
+              <div>
+                <label className="block font-black uppercase tracking-wider text-slate-500 mb-2">App Logo URL (Image Link or Favicon)</label>
+                <input
+                  type="text"
+                  required
+                  value={appLogoUrl}
+                  onChange={e => setAppLogoUrl(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none"
+                  placeholder="/favicon.png or https://example.com/logo.png"
+                />
+              </div>
+
+              <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-white border border-indigo-200 flex items-center justify-center overflow-hidden shrink-0">
+                  <img src={appLogoUrl} alt="Logo Preview" className="w-10 h-10 object-cover" onError={(e) => { (e.target as any).src = '/favicon.png'; }} />
+                </div>
+                <div>
+                  <div className="font-black text-indigo-900 text-sm">Logo & Brand Preview</div>
+                  <div className="text-[11px] text-indigo-700 font-medium">{appName}</div>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t flex justify-end">
+                <button
+                  type="submit"
+                  className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black uppercase tracking-widest shadow-md shadow-indigo-200"
+                >
+                  Save Global Branding
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
         {/* TAB 5: AUDIT LOGS */}
         {activeTab === 'logs' && (
           <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden space-y-4">
@@ -518,12 +644,12 @@ export default function SuperAdminDashboard() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block font-bold uppercase text-slate-500 mb-1">Monthly Price ($)</label>
-                    <input type="number" required value={priceMonthly} onChange={e => setPriceMonthly(e.target.value)} placeholder="99" className="w-full p-2.5 border rounded-xl" />
+                    <label className="block font-bold uppercase text-slate-500 mb-1">Monthly Price (₹ INR)</label>
+                    <input type="number" required value={priceMonthly} onChange={e => setPriceMonthly(e.target.value)} placeholder="4999" className="w-full p-2.5 border rounded-xl" />
                   </div>
                   <div>
-                    <label className="block font-bold uppercase text-slate-500 mb-1">Annual Price ($)</label>
-                    <input type="number" required value={priceAnnual} onChange={e => setPriceAnnual(e.target.value)} placeholder="990" className="w-full p-2.5 border rounded-xl" />
+                    <label className="block font-bold uppercase text-slate-500 mb-1">Annual Price (₹ INR)</label>
+                    <input type="number" required value={priceAnnual} onChange={e => setPriceAnnual(e.target.value)} placeholder="49990" className="w-full p-2.5 border rounded-xl" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -559,12 +685,12 @@ export default function SuperAdminDashboard() {
               </div>
               <form onSubmit={handleUpdatePlan} className="space-y-4 text-xs">
                 <div>
-                  <label className="block font-bold uppercase text-slate-500 mb-1">Monthly Price ($)</label>
-                  <input type="number" step="0.01" required value={editPriceMonthly} onChange={e => setEditPriceMonthly(e.target.value)} className="w-full p-2.5 border rounded-xl" />
+                  <label className="block font-bold uppercase text-slate-500 mb-1">Monthly Price (₹ INR)</label>
+                  <input type="number" step="1" required value={editPriceMonthly} onChange={e => setEditPriceMonthly(e.target.value)} className="w-full p-2.5 border rounded-xl" />
                 </div>
                 <div>
-                  <label className="block font-bold uppercase text-slate-500 mb-1">Annual Price ($)</label>
-                  <input type="number" step="0.01" required value={editPriceAnnual} onChange={e => setEditPriceAnnual(e.target.value)} className="w-full p-2.5 border rounded-xl" />
+                  <label className="block font-bold uppercase text-slate-500 mb-1">Annual Price (₹ INR)</label>
+                  <input type="number" step="1" required value={editPriceAnnual} onChange={e => setEditPriceAnnual(e.target.value)} className="w-full p-2.5 border rounded-xl" />
                 </div>
                 <div className="flex justify-end gap-3 pt-3 border-t">
                   <button type="button" onClick={() => setEditingPlan(null)} className="px-4 py-2 bg-slate-100 rounded-xl font-bold">Cancel</button>
@@ -600,6 +726,247 @@ export default function SuperAdminDashboard() {
             </div>
           </div>
         )}
+
+        {/* CAMPUS FULL DETAILS & DOMAIN INSPECTOR MODAL */}
+        {selectedCampusDetails && (() => {
+          const plan = subscriptionPlans.find(p => p.id === selectedCampusDetails.subscriptionPlanId);
+          const domainUrl = selectedCampusDetails.domain || `${selectedCampusDetails.slug}.grandcampus.edu`;
+          const portalDirectUrl = `${window.location.origin}/#/login?campus=${selectedCampusDetails.slug}`;
+          const campusStudents = targetUsers.filter(u => u.role === 'student' && u.campusId === selectedCampusDetails.id);
+          const campusStaff = targetUsers.filter(u => (u.role === 'teacher' || u.role === 'admin') && u.campusId === selectedCampusDetails.id);
+
+          return (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
+              <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl space-y-6 my-8 border border-slate-100">
+                {/* Modal Header */}
+                <div className="flex justify-between items-start border-b border-slate-100 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-700 flex items-center justify-center font-black text-xl">
+                      <School className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xl font-black text-slate-900">{selectedCampusDetails.name}</h3>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                          selectedCampusDetails.status === 'active' 
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                            : 'bg-rose-50 text-rose-700 border border-rose-200'
+                        }`}>
+                          {selectedCampusDetails.status}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 font-medium">
+                        Institution Code: <span className="font-mono text-slate-700">{selectedCampusDetails.slug}</span> • Type: {selectedCampusDetails.collegeType || 'Educational Campus'}
+                      </p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      setSelectedCampusDetails(null);
+                      setCopiedDomain(false);
+                    }}
+                    className="p-1 text-slate-400 hover:text-slate-600 rounded-xl"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+
+                {/* DOMAIN & ACCESS PROTOCOL BOX */}
+                <div className="p-5 rounded-2xl bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-950 text-white space-y-4 shadow-xl">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-amber-400 text-xs font-black uppercase tracking-widest">
+                      <Globe className="w-4 h-4" /> Dedicated College Domain & URL
+                    </div>
+                    <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded-md font-mono text-slate-300">
+                      Multi-Tenant Isolation
+                    </span>
+                  </div>
+
+                  <div className="bg-black/40 p-3.5 rounded-xl border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] text-slate-400 font-medium">Virtual Campus Subdomain:</p>
+                      <p className="font-mono text-indigo-300 font-black text-sm">{domainUrl}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(portalDirectUrl);
+                          setCopiedDomain(true);
+                          setTimeout(() => setCopiedDomain(false), 2500);
+                        }}
+                        className="px-3 py-2 bg-white/10 hover:bg-white/20 active:bg-white/30 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+                      >
+                        {copiedDomain ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedDomain ? 'Copied Link!' : 'Copy Portal URL'}</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          inspectCampus(selectedCampusDetails.id);
+                          setSelectedCampusDetails(null);
+                          navigate('/admin');
+                        }}
+                        className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 active:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md shadow-indigo-500/20 transition-all"
+                      >
+                        <LogIn className="w-3.5 h-3.5" />
+                        <span>Inspect Portal</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* DETAILS GRID */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                  {/* Left Column: College Info */}
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+                    <h4 className="font-black text-slate-900 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                      <Building2 className="w-4 h-4 text-indigo-600" /> College Credentials & Contact
+                    </h4>
+                    <div className="space-y-1.5 text-slate-600">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400 font-medium">Administrator:</span>
+                        <span className="font-bold text-slate-800">{selectedCampusDetails.adminName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400 font-medium">Admin Email:</span>
+                        <span className="font-bold text-slate-800">{selectedCampusDetails.adminEmail}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400 font-medium">Phone:</span>
+                        <span className="font-bold text-slate-800">{selectedCampusDetails.phone || '+91 On File'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400 font-medium">Campus Address:</span>
+                        <span className="font-medium text-slate-800 text-right truncate max-w-[180px]">{selectedCampusDetails.address || 'Address registered'}</span>
+                      </div>
+                      <div className="flex justify-between pt-1 border-t border-slate-200/60">
+                        <span className="text-slate-400 font-medium">Admin Login Hint:</span>
+                        <span className="font-mono text-indigo-600 font-bold">admin_{selectedCampusDetails.id}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Subscription in Rupees */}
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+                    <h4 className="font-black text-slate-900 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                      <IndianRupee className="w-4 h-4 text-emerald-600" /> Subscription Tier in Rupees (₹)
+                    </h4>
+                    <div className="space-y-1.5 text-slate-600">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400 font-medium">Selected Tier:</span>
+                        <span className="font-black text-indigo-700">{plan?.name || 'Standard Plan'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400 font-medium">Monthly Price:</span>
+                        <span className="font-bold text-emerald-700">₹{(plan?.priceMonthly || 4999).toLocaleString('en-IN')} / month</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400 font-medium">Annual Price:</span>
+                        <span className="font-bold text-emerald-700">₹{(plan?.priceAnnual || 49990).toLocaleString('en-IN')} / year</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400 font-medium">Subscription Status:</span>
+                        <span className="uppercase text-[10px] font-black px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">{selectedCampusDetails.subscriptionStatus}</span>
+                      </div>
+                      <div className="flex justify-between pt-1 border-t border-slate-200/60">
+                        <span className="text-slate-400 font-medium">Registered Date:</span>
+                        <span className="font-medium text-slate-700">{selectedCampusDetails.createdAt}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* STUDENTS ROSTER / EMPTY DASHBOARD STATE */}
+                <div className="p-4 rounded-2xl border border-slate-200 bg-white space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-black text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                        <Users className="w-4 h-4 text-blue-600" /> Student Enrollment & Dashboard Status
+                      </h4>
+                      <p className="text-[11px] text-slate-400">Isolated database roster for {selectedCampusDetails.name}</p>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-xl bg-blue-50 text-blue-700 font-black text-xs">
+                      {campusStudents.length} Students Enrolled
+                    </span>
+                  </div>
+
+                  {campusStudents.length === 0 ? (
+                    <div className="p-6 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center space-y-2">
+                      <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                        <Users className="w-5 h-5" />
+                      </div>
+                      <p className="text-xs font-black text-slate-800">Empty Dashboard (0 Students)</p>
+                      <p className="text-[11px] text-slate-500 max-w-md mx-auto">
+                        This college has freshly registered. As per tenant assurance isolation, their portal starts 100% empty. Once their administrators access their domain, they will populate this roster with students.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="max-h-40 overflow-y-auto divide-y divide-slate-100 text-xs">
+                      {campusStudents.map(st => (
+                        <div key={st.id} className="py-2 flex justify-between items-center">
+                          <span className="font-bold text-slate-800">{st.name}</span>
+                          <span className="text-slate-400 font-mono">Grade {st.classGrade || 'N/A'} • Sec {st.section || 'A'} • ID: {st.admissionNumber || st.id}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* MODAL ACTIONS FOOTER */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
+                  <div className="flex items-center gap-2">
+                    {selectedCampusDetails.status === 'active' ? (
+                      <button
+                        onClick={() => {
+                          updateCampusStatus(selectedCampusDetails.id, 'suspended');
+                          setSelectedCampusDetails(prev => prev ? { ...prev, status: 'suspended' } : null);
+                        }}
+                        className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all"
+                      >
+                        <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Suspend This Campus</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          updateCampusStatus(selectedCampusDetails.id, 'active');
+                          setSelectedCampusDetails(prev => prev ? { ...prev, status: 'active' } : null);
+                        }}
+                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Reactivate & Restore Access</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCampusDetails(null);
+                        setCopiedDomain(false);
+                      }}
+                      className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs"
+                    >
+                      Close Details
+                    </button>
+                    <button
+                      onClick={() => {
+                        inspectCampus(selectedCampusDetails.id);
+                        setSelectedCampusDetails(null);
+                        navigate('/admin');
+                      }}
+                      className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black uppercase tracking-wider text-xs flex items-center gap-1.5 shadow-md shadow-indigo-200"
+                    >
+                      <LogIn className="w-3.5 h-3.5" />
+                      <span>Enter & Inspect Dashboard</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </Layout>
   );
