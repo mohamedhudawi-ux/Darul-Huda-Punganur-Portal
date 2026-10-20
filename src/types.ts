@@ -1,67 +1,4 @@
-export type Role = 'super_admin' | 'admin' | 'teacher' | 'student';
-
-export interface Campus {
-  id: string;
-  slug: string;
-  domain?: string; // Virtual or custom domain e.g. college-name.grandcampus.edu
-  name: string; // Institution / College Name
-  collegeType?: string; // Engineering, Medical, Arts & Science, Polytechnic, School
-  logoUrl?: string;
-  address?: string;
-  adminEmail: string;
-  adminName: string;
-  phone?: string;
-  status: 'pending' | 'active' | 'suspended' | 'deactivated';
-  subscriptionPlanId: string;
-  subscriptionStatus: 'trial' | 'active' | 'grace' | 'expired';
-  trialEndsAt?: string;
-  subscriptionExpiresAt?: string;
-  createdAt: string;
-}
-
-export interface SubscriptionPlan {
-  id: string;
-  name: string;
-  priceMonthly: number;
-  priceAnnual: number;
-  maxStudents: number;
-  maxStaff: number;
-  storageLimitGb: number;
-  features: string[];
-  description: string;
-}
-
-export interface PaymentRecord {
-  id: string;
-  campusId: string;
-  campusName: string;
-  amount: number;
-  currency: string;
-  planId: string;
-  billingCycle: 'monthly' | 'annual';
-  status: 'success' | 'pending' | 'failed';
-  paymentId?: string;
-  createdAt: string;
-}
-
-export interface PlatformAnnouncement {
-  id: string;
-  title: string;
-  message: string;
-  targetCampusId: string; // 'all' or specific campusId
-  createdAt: string;
-  author: string;
-}
-
-export interface AuditLog {
-  id: string;
-  campusId?: string;
-  userId?: string;
-  userName?: string;
-  action: string;
-  details: string;
-  timestamp: string;
-}
+export type Role = 'admin' | 'teacher' | 'student';
 
 export interface SemesterProgress {
   semester: string;
@@ -71,7 +8,6 @@ export interface SemesterProgress {
 
 export interface User {
   id: string;
-  campusId?: string;
   role: Role;
   name: string;
   password?: string;
@@ -79,7 +15,6 @@ export interface User {
   classGrade?: string; 
   section?: string;
   mentorId?: string; // Teacher ID acting as mentor
-  mentorName?: string; // Teacher Name acting as mentor
   photoUrl?: string;
   attendance?: number;
   semesterHistory?: SemesterProgress[];
@@ -127,7 +62,6 @@ export interface MentorInsight {
 
 export interface SubjectConfig {
   id: string;
-  campusId?: string;
   classGrade: string;
   section?: string;
   name: string;
@@ -158,15 +92,11 @@ export interface CCEMark {
   id: string;
   studentId: string;
   subject: string;
-  cceLevel: string; // e.g. "CCE 1", "CCE 2", "CCE 3", "CCE 4", "Mid Term Exam"
+  cceLevel: string; // e.g. "CCE-1", "CCE-2"
   month?: string;
   date: string; 
   score: number | 'Ab'; 
   maxScore: number;
-  description?: string; // Topic, portion, activity, or assignment description (e.g., "Chapter 3 Quiz & Notebook Assessment")
-  notes?: string; // Optional student-specific note or remark
-  teacherId?: string; // Teacher who entered this CCE mark
-  teacherName?: string; // Teacher full name
 }
 
 export interface SkillClubMark {

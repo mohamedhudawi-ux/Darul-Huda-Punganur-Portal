@@ -6,7 +6,6 @@ import * as XLSX from 'xlsx';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CCEMarksManager } from '../components/CCEMarksManager';
 import { CCEMarksSummary } from '../components/CCEMarksSummary';
-import { ClassCCEInspector } from '../components/admin/ClassCCEInspector';
 import { SkillClubManager } from '../components/SkillClubManager';
 import { TaskTemplateManager } from '../components/TaskTemplateManager';
 import { TeacherTaskVerifier } from '../components/TeacherTaskVerifier';
@@ -30,7 +29,6 @@ export default function AdminDashboard() {
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
   const [cceClassFilters, setCceClassFilters] = useState({ classGrade: '', section: '', subject: '', cceLevel: '' });
   const [reportType, setReportType] = useState<'all' | 'cce' | string>('all');
-  const [cceViewMode, setCceViewMode] = useState<'inspector' | 'entry' | 'summary'>('inspector');
 
   // Mentorship assignment state
   const [assignMentorId, setAssignMentorId] = useState('');
@@ -473,39 +471,23 @@ export default function AdminDashboard() {
   const [dirSectionFilter, setDirSectionFilter] = useState('');
   const [dirRoleFilter, setDirRoleFilter] = useState<string>('all');
 
-  // Quick student finder state for Overview dashboard
-  const [dashboardStudentSearch, setDashboardStudentSearch] = useState('');
-  const [dashboardStudentClassFilter, setDashboardStudentClassFilter] = useState('');
-  const [dashboardStudentSectionFilter, setDashboardStudentSectionFilter] = useState('');
-
-  const allStudentUsers = users.filter(u => u.role === 'student');
-  const availableDashboardGrades = Array.from(new Set(allStudentUsers.map(u => u.classGrade).filter(Boolean))) as string[];
-  const availableDashboardSections = Array.from(new Set(allStudentUsers.map(u => u.section).filter(Boolean))) as string[];
-
-  const filteredDashboardStudents = allStudentUsers.filter(u => {
-    const matchesSearch = dashboardStudentSearch === '' || 
-      (u.name || '').toLowerCase().includes(dashboardStudentSearch.toLowerCase()) || 
-      (u.admissionNumber && (u.admissionNumber || '').toLowerCase().includes(dashboardStudentSearch.toLowerCase()));
-    const matchesClass = dashboardStudentClassFilter === '' || u.classGrade === dashboardStudentClassFilter;
-    const matchesSection = dashboardStudentSectionFilter === '' || u.section === dashboardStudentSectionFilter;
-    return matchesSearch && matchesClass && matchesSection;
-  });
-
   const allVisibleUsers = users.filter(u => u.role !== 'admin');
   const availableClasses = Array.from(new Set(allVisibleUsers.map(u => u.classGrade).filter(Boolean))) as string[];
   const availableSections = Array.from(new Set(allVisibleUsers.map(u => u.section).filter(Boolean))) as string[];
 
   const isFilterOrSearchActive = dirSearchQuery.trim() !== '' || dirClassFilter !== '' || dirSectionFilter !== '' || dirRoleFilter !== 'all';
 
-  const visibleUsers = allVisibleUsers.filter(u => {
-    const matchesSearch = dirSearchQuery === '' || 
-      (u.name || '').toLowerCase().includes(dirSearchQuery.toLowerCase()) || 
-      (u.admissionNumber && (u.admissionNumber || '').toLowerCase().includes(dirSearchQuery.toLowerCase()));
-    const matchesClass = dirClassFilter === '' || u.classGrade === dirClassFilter;
-    const matchesSection = dirSectionFilter === '' || u.section === dirSectionFilter;
-    const matchesRole = dirRoleFilter === 'all' || u.role === dirRoleFilter;
-    return matchesSearch && matchesClass && matchesSection && matchesRole;
-  });
+  const visibleUsers = isFilterOrSearchActive 
+    ? allVisibleUsers.filter(u => {
+        const matchesSearch = dirSearchQuery === '' || 
+          (u.name || '').toLowerCase().includes(dirSearchQuery.toLowerCase()) || 
+          (u.admissionNumber && (u.admissionNumber || '').toLowerCase().includes(dirSearchQuery.toLowerCase()));
+        const matchesClass = dirClassFilter === '' || u.classGrade === dirClassFilter;
+        const matchesSection = dirSectionFilter === '' || u.section === dirSectionFilter;
+        const matchesRole = dirRoleFilter === 'all' || u.role === dirRoleFilter;
+        return matchesSearch && matchesClass && matchesSection && matchesRole;
+      })
+    : [];
   
   const handleToggleUserSelection = (userId: string) => {
     const newSelection = new Set(selectedUserIds);
@@ -580,26 +562,20 @@ export default function AdminDashboard() {
     <Layout>
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 print:hidden">
-          <div className="flex items-center gap-4">
-            {settings?.logoUrl && (
-              <img src={settings.logoUrl} alt="Campus Logo" className="w-12 h-12 rounded-xl object-cover border border-slate-200 shadow-sm" />
-            )}
-            <div>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-                {settings?.name || 'Grand Campus Portal'}
-              </h1>
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-                Welcome, {currentUser?.name || 'Administrator'}
-              </p>
+          <div>
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              {currentUser?.admissionNumber && (
+                <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-black uppercase tracking-widest">
+                  ID: {currentUser.admissionNumber}
+                </div>
+              )}
             </div>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight">
+              {currentUser?.name || 'Command Center'}
+            </h2>
           </div>
           
           <div className="flex items-center gap-3">
-              {currentUser?.admissionNumber && (
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-black uppercase tracking-widest">
-                  Staff ID: {currentUser.admissionNumber}
-                </div>
-              )}
             <button 
               onClick={() => setActiveTab('settings')}
               className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 transition-all shadow-sm"
@@ -677,111 +653,6 @@ export default function AdminDashboard() {
             </div>
           </div>
         </div>
-
-            {/* Quick Student Search & Class/Grade Filter Widget */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                    <Users className="w-5 h-5 text-blue-600" /> Quick Student Finder
-                  </h3>
-                  <p className="text-xs text-slate-500 font-medium">Search for specific students by name or admission ID, or filter by class/grade instantly.</p>
-                </div>
-                <button 
-                  onClick={() => setActiveTab('users')}
-                  className="text-xs font-black text-blue-600 hover:text-blue-800 uppercase tracking-wider"
-                >
-                  Open Full Directory →
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div className="relative">
-                  <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input 
-                    type="text" 
-                    value={dashboardStudentSearch}
-                    onChange={(e) => setDashboardStudentSearch(e.target.value)}
-                    placeholder="Search student name or ID..."
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                  />
-                </div>
-                <div>
-                  <select
-                    value={dashboardStudentClassFilter}
-                    onChange={(e) => setDashboardStudentClassFilter(e.target.value)}
-                    className="w-full py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                  >
-                    <option value="">All Classes / Grades</option>
-                    {availableDashboardGrades.sort().map(c => (
-                      <option key={c} value={c}>Grade {c}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <select
-                    value={dashboardStudentSectionFilter}
-                    onChange={(e) => setDashboardStudentSectionFilter(e.target.value)}
-                    className="w-full py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                  >
-                    <option value="">All Sections</option>
-                    {availableDashboardSections.sort().map(s => (
-                      <option key={s} value={s}>Section {s}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Results */}
-              {(dashboardStudentSearch.trim() !== '' || dashboardStudentClassFilter !== '' || dashboardStudentSectionFilter !== '') ? (
-                <div className="mt-4 space-y-2 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
-                  {filteredDashboardStudents.length > 0 ? (
-                    filteredDashboardStudents.map(student => (
-                      <div key={student.id} className="flex items-center justify-between p-3.5 bg-slate-50 hover:bg-blue-50/50 border border-slate-200/80 rounded-2xl transition-all">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 font-black text-xs flex items-center justify-center">
-                            {student.name.charAt(0)}
-                          </div>
-                          <div>
-                            <p className="text-xs font-black text-slate-900">{student.name}</p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-[10px] font-bold text-slate-500">ID: {student.admissionNumber || 'N/A'}</span>
-                              <span className="text-slate-300">•</span>
-                              <span className="text-[10px] font-bold text-blue-600">Grade {student.classGrade || 'N/A'} {student.section ? `• Sec ${student.section}` : ''}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button 
-                            onClick={() => {
-                              impersonate(student.id);
-                              navigate('/student');
-                            }}
-                            className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg text-[10px] font-bold text-slate-700 flex items-center gap-1 transition-all shadow-xs"
-                          >
-                            <Eye className="w-3 h-3" /> Portal
-                          </button>
-                          <button 
-                            onClick={() => navigate(`/report/${student.id}`)}
-                            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all shadow-xs"
-                          >
-                            <FileText className="w-3 h-3" /> Report
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="py-8 text-center text-slate-400 text-xs italic">
-                      No students found matching your search or filter.
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="py-6 text-center text-slate-400 text-xs italic bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
-                  Type a student name, admission ID, or select a grade filter above to quickly locate students.
-                </div>
-              )}
-            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* System Status & Window */}
@@ -1055,7 +926,13 @@ export default function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {visibleUsers.length === 0 ? (
+                    {!isFilterOrSearchActive ? (
+                      <tr>
+                        <td colSpan={4} className="px-6 py-12 text-center text-slate-400 text-xs italic bg-slate-50/50">
+                          Student and teacher names are hidden by default. Please enter a search query or select a class filter above to view candidates.
+                        </td>
+                      </tr>
+                    ) : visibleUsers.length === 0 ? (
                       <tr>
                         <td colSpan={4} className="px-6 py-12 text-center text-slate-500 bg-slate-50/50 italic">
                           No matching candidates found.
@@ -1540,54 +1417,9 @@ export default function AdminDashboard() {
         )}
 
         {activeTab === 'cce' && (
-          <div className="space-y-6 animate-in fade-in duration-300">
-            {/* View Mode Switcher */}
-            <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-2 rounded-2xl border border-slate-200 shadow-xs">
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCceViewMode('inspector')}
-                  className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
-                    cceViewMode === 'inspector'
-                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                  }`}
-                >
-                  <BookOpen className="w-4 h-4" />
-                  <span>Check CCE Held in Every Class & Subject</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setCceViewMode('entry')}
-                  className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
-                    cceViewMode === 'entry'
-                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                  }`}
-                >
-                  <FileSpreadsheet className="w-4 h-4" />
-                  <span>CCE Marks Entry Portal</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setCceViewMode('summary')}
-                  className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 ${
-                    cceViewMode === 'summary'
-                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                  }`}
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Submission Summary Status</span>
-                </button>
-              </div>
-            </div>
-
-            {cceViewMode === 'inspector' && <ClassCCEInspector />}
-            {cceViewMode === 'entry' && <CCEMarksManager />}
-            {cceViewMode === 'summary' && <CCEMarksSummary />}
+          <div className="space-y-8 animate-in fade-in duration-500">
+            <CCEMarksManager />
+            <CCEMarksSummary />
           </div>
         )}
 

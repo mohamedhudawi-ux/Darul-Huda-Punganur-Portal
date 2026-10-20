@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, Question, Assessment, CCEMark, CampusSettings, SubjectConfig, AssessmentLogEntry, MentorInsight, SkillClubMark, TaskTemplate, StudentTask, Campus, SubscriptionPlan, PaymentRecord, PlatformAnnouncement, AuditLog } from '../types';
+import { User, Question, Assessment, CCEMark, CampusSettings, SubjectConfig, AssessmentLogEntry, MentorInsight, SkillClubMark, TaskTemplate, StudentTask } from '../types';
 import { matchesMonth, getAcademicMonthForDate, isMonthOver } from './utils';
 import { 
   collection, 
@@ -105,11 +105,6 @@ interface DatabaseState {
   skillClubMarks: SkillClubMark[];
   taskTemplates: TaskTemplate[];
   studentTasks: StudentTask[];
-  campuses: Campus[];
-  subscriptionPlans: SubscriptionPlan[];
-  payments: PaymentRecord[];
-  platformAnnouncements: PlatformAnnouncement[];
-  auditLogs: AuditLog[];
 }
 
 interface AuthState {
@@ -151,19 +146,6 @@ interface DatabaseContextType extends DatabaseState, AuthState {
   deleteStudentTask: (id: string) => void;
   deleteStudentTasks: (ids: string[]) => void;
   deleteSkillClubMark: (id: string) => void;
-  allUsers: User[];
-  allCampuses: Campus[];
-  inspectingCampusId: string | null;
-  inspectCampus: (campusId: string) => void;
-  stopInspectingCampus: () => void;
-  registerCampus: (data: Omit<Campus, 'id' | 'status' | 'subscriptionStatus' | 'createdAt'> & { password?: string; collegeType?: string; domain?: string }) => Promise<void>;
-  updateCampus: (campusId: string, updates: Partial<Campus>) => Promise<void>;
-  updateCampusStatus: (campusId: string, status: 'pending' | 'active' | 'suspended' | 'deactivated') => Promise<void>;
-  updateCampusSubscription: (campusId: string, planId: string, status: 'trial' | 'active' | 'grace' | 'expired') => Promise<void>;
-  addSubscriptionPlan: (plan: Omit<SubscriptionPlan, 'id'>) => Promise<void>;
-  updateSubscriptionPlan: (planId: string, updates: Partial<SubscriptionPlan>) => Promise<void>;
-  sendPlatformAnnouncement: (ann: Omit<PlatformAnnouncement, 'id' | 'createdAt'>) => Promise<void>;
-  addAuditLog: (log: Omit<AuditLog, 'id' | 'timestamp'>) => Promise<void>;
 }
 
 const defaultSettings: CampusSettings = {
@@ -184,27 +166,22 @@ const defaultSettings: CampusSettings = {
 };
 
 export const defaultUsers: User[] = [
-  { id: 'super_admin_1', role: 'super_admin', name: 'Platform Super Admin', password: 'password123' },
-  { id: 'admin1', campusId: 'campus_darul_huda', role: 'admin', name: 'Campus Admin', password: 'password123' },
-  { id: 'demo_teacher', campusId: 'campus_darul_huda', role: 'teacher', name: 'Demo Teacher', classGrade: '10', section: 'A', password: 'password123' },
-  { id: 'teacher1', campusId: 'campus_darul_huda', role: 'teacher', name: 'Mr. Smith', classGrade: '10', section: 'A', password: 'password123' },
-  { id: 'teacher2', campusId: 'campus_darul_huda', role: 'teacher', name: 'Mrs. Davis', classGrade: '10', section: 'B', password: 'password123' },
+  { id: 'admin1', role: 'admin', name: 'Campus Admin', password: 'password123' },
+  { id: 'demo_teacher', role: 'teacher', name: 'Demo Teacher', classGrade: '10', section: 'A', password: 'password123' },
+  { id: 'teacher1', role: 'teacher', name: 'Mr. Smith', classGrade: '10', section: 'A', password: 'password123' },
+  { id: 'teacher2', role: 'teacher', name: 'Mrs. Davis', classGrade: '10', section: 'B', password: 'password123' },
   { 
     id: 'demo_student', 
-    campusId: 'campus_darul_huda',
     role: 'student', 
     name: 'Demo Student', 
     admissionNumber: 'DEMO-001', 
     classGrade: '10', 
     section: 'A', 
     password: 'password123',
-    attendance: 100,
-    mentorId: 'demo_teacher',
-    mentorName: 'Demo Teacher'
+    attendance: 100
   },
   { 
     id: 'student1', 
-    campusId: 'campus_darul_huda',
     role: 'student', 
     name: 'Alice Johnson', 
     admissionNumber: 'ADM-001', 
@@ -212,8 +189,6 @@ export const defaultUsers: User[] = [
     section: 'A', 
     password: 'password123',
     attendance: 96,
-    mentorId: 'demo_teacher',
-    mentorName: 'Demo Teacher',
     semesterHistory: [
       { semester: 'Shawwal 2025', academicScore: 82, attendance: 93 },
       { semester: 'Dhul-Qadah 2025', academicScore: 86, attendance: 95 },
@@ -223,7 +198,6 @@ export const defaultUsers: User[] = [
   },
   { 
     id: 'student2', 
-    campusId: 'campus_darul_huda',
     role: 'student', 
     name: 'Bob Williams', 
     admissionNumber: 'ADM-002', 
@@ -231,8 +205,6 @@ export const defaultUsers: User[] = [
     section: 'A', 
     password: 'password123',
     attendance: 91,
-    mentorId: 'teacher1',
-    mentorName: 'Mr. Smith',
     semesterHistory: [
       { semester: 'Shawwal 2025', academicScore: 74, attendance: 88 },
       { semester: 'Dhul-Qadah 2025', academicScore: 78, attendance: 90 },
@@ -242,7 +214,6 @@ export const defaultUsers: User[] = [
   },
   { 
     id: 'student3', 
-    campusId: 'campus_darul_huda',
     role: 'student', 
     name: 'Charlie Brown', 
     admissionNumber: 'ADM-003', 
@@ -250,8 +221,6 @@ export const defaultUsers: User[] = [
     section: 'B', 
     password: 'password123',
     attendance: 94,
-    mentorId: 'teacher2',
-    mentorName: 'Mrs. Davis',
     semesterHistory: [
       { semester: 'Shawwal 2025', academicScore: 80, attendance: 91 },
       { semester: 'Dhul-Qadah 2025', academicScore: 83, attendance: 94 },
@@ -274,89 +243,6 @@ const defaultSubjects: SubjectConfig[] = [
   { id: 'sub3', classGrade: '10', name: 'English' },
 ];
 
-export const defaultSubscriptionPlans: SubscriptionPlan[] = [
-  {
-    id: 'plan_starter',
-    name: 'Starter Campus',
-    priceMonthly: 4999,
-    priceAnnual: 49990,
-    maxStudents: 250,
-    maxStaff: 20,
-    storageLimitGb: 10,
-    features: ['Isolated Tenant Environment', 'Core CCE & Attendance', 'Standard Support', 'Dedicated Subdomain'],
-    description: 'Perfect for small schools and individual colleges.'
-  },
-  {
-    id: 'plan_pro',
-    name: 'Professional Campus',
-    priceMonthly: 14999,
-    priceAnnual: 149990,
-    maxStudents: 1000,
-    maxStaff: 75,
-    storageLimitGb: 50,
-    features: ['Advanced Analytics', 'Priority Support', 'Custom College Branding', 'Unlimited Sections', 'Dedicated Domain'],
-    description: 'Ideal for growing colleges, institutes, and high schools.'
-  },
-  {
-    id: 'plan_enterprise',
-    name: 'Enterprise Unlimited',
-    priceMonthly: 29999,
-    priceAnnual: 299990,
-    maxStudents: 999999,
-    maxStaff: 9999,
-    storageLimitGb: 500,
-    features: ['Dedicated Account Manager', 'Custom Domain Support', 'SLA Guarantee', 'Advanced Audit Logs', 'Multi-Branch Support'],
-    description: 'For large educational networks, universities, and polytechnics.'
-  }
-];
-
-export const defaultCampuses: Campus[] = [
-  {
-    id: 'campus_darul_huda',
-    slug: 'darul-huda-punganur',
-    domain: 'darul-huda-punganur.grandcampus.edu',
-    name: 'Darul Huda Punganur',
-    collegeType: 'University / Multi-Faculty',
-    address: 'Punganur, Andhra Pradesh, India',
-    adminEmail: 'admin@darulhuda.edu',
-    adminName: 'Campus Admin',
-    phone: '+91 98765 43210',
-    status: 'active',
-    subscriptionPlanId: 'plan_pro',
-    subscriptionStatus: 'active',
-    createdAt: '2026-01-01'
-  },
-  {
-    id: 'campus_grand',
-    slug: 'grand-campus',
-    domain: 'grandcampus.edu',
-    name: 'Grand Campus Assurance Portal',
-    collegeType: 'Institution',
-    address: 'Campus Main Grounds',
-    adminEmail: 'admin@grandcampus.edu',
-    adminName: 'Campus Admin',
-    phone: '+91 98765 43210',
-    status: 'active',
-    subscriptionPlanId: 'plan_pro',
-    subscriptionStatus: 'active',
-    createdAt: '2026-01-01'
-  }
-];
-
-export const defaultPayments: PaymentRecord[] = [
-  {
-    id: 'PAY_IN_88291',
-    campusId: 'campus_darul_huda',
-    campusName: 'Darul Huda Punganur',
-    amount: 14999,
-    currency: 'INR',
-    planId: 'plan_pro',
-    billingCycle: 'monthly',
-    status: 'success',
-    createdAt: '2026-10-01'
-  }
-];
-
 const StoreContext = createContext<DatabaseContextType | undefined>(undefined);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
@@ -370,41 +256,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [skillClubMarks, setSkillClubMarks] = useState<SkillClubMark[]>([]);
   const [taskTemplates, setTaskTemplates] = useState<TaskTemplate[]>([]);
   const [studentTasks, setStudentTasks] = useState<StudentTask[]>([]);
-  const [campuses, setCampuses] = useState<Campus[]>(() => {
-    const saved = localStorage.getItem('saas_campuses');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return defaultCampuses;
-      }
-    }
-    return defaultCampuses;
-  });
-
-  useEffect(() => {
-    localStorage.setItem('saas_campuses', JSON.stringify(campuses));
-  }, [campuses]);
-  const [subscriptionPlans, setSubscriptionPlans] = useState<SubscriptionPlan[]>(defaultSubscriptionPlans);
-  const [payments, setPayments] = useState<PaymentRecord[]>(defaultPayments);
-  const [inspectingCampusId, setInspectingCampusId] = useState<string | null>(() => {
-    return localStorage.getItem('campus_inspecting_id') || null;
-  });
-
-  const inspectCampus = (campusId: string) => {
-    setInspectingCampusId(campusId);
-    localStorage.setItem('campus_inspecting_id', campusId);
-  };
-
-  const stopInspectingCampus = () => {
-    setInspectingCampusId(null);
-    localStorage.removeItem('campus_inspecting_id');
-  };
-
-  const [platformAnnouncements, setPlatformAnnouncements] = useState<PlatformAnnouncement[]>([]);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([
-    { id: 'log_1', timestamp: new Date().toLocaleTimeString(), action: 'SYSTEM_BOOT', details: 'Multi-tenant SaaS platform initialized successfully in INR.' }
-  ]);
   const [settings, setSettings] = useState<CampusSettings>(defaultSettings);
   
   const [loading, setLoading] = useState(true);
@@ -454,65 +305,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     };
 
     const unsubs = collections.map(col => 
-      onSnapshot(collection(db, col.name), async (snapshot) => {
-        let docs = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as any));
-        if (col.name === 'users') {
-          const defaultMap = new Map(defaultUsers.map(du => [du.id, du]));
-          docs = docs.map(u => {
-            const def = defaultMap.get(u.id);
-            const name = u.name && String(u.name).trim() !== '' ? u.name : (def?.name || u.admissionNumber || (u.role === 'teacher' ? 'Teacher' : (u.role === 'student' ? 'Student' : u.id)));
-            return { ...u, name };
-          });
-          const docIds = new Set(docs.map(d => d.id));
-          const missingUsers: User[] = [];
-          defaultUsers.forEach(du => {
-            if (!docIds.has(du.id)) {
-              docs.push(du);
-              missingUsers.push(du);
-            }
-          });
-          if (missingUsers.length > 0) {
-            try {
-              const batch = writeBatch(db);
-              missingUsers.forEach(u => batch.set(doc(db, 'users', u.id), cleanData(u)));
-              await batch.commit();
-              console.log(`Auto-restored ${missingUsers.length} missing default users to Firestore.`);
-            } catch (err) {
-              console.warn('Failed to auto-restore users:', err);
-            }
-          }
-        }
+      onSnapshot(collection(db, col.name), (snapshot) => {
+        const docs = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as any));
         console.log(`Syncing ${col.name}: ${docs.length} documents received.`);
         
         // Update state with whatever is in the cloud
         if (docs.length > 0 || ['assessments', 'cceMarks', 'studentTasks', 'assessmentLogs', 'mentorInsights', 'skillClubMarks', 'taskTemplates'].includes(col.name)) {
           col.setter(docs);
         } else {
-          // If empty, we keep our local defaults for critical collections and seed them
-          if (col.name === 'users') {
-            setUsers(defaultUsers);
-            try {
-              const batch = writeBatch(db);
-              defaultUsers.forEach(u => batch.set(doc(db, 'users', u.id), cleanData(u)));
-              await batch.commit();
-            } catch (err) {}
-          }
-          if (col.name === 'questions') {
-            setQuestions(defaultQuestions);
-            try {
-              const batch = writeBatch(db);
-              defaultQuestions.forEach(q => batch.set(doc(db, 'questions', q.id), cleanData(q)));
-              await batch.commit();
-            } catch (err) {}
-          }
-          if (col.name === 'subjects') {
-            setSubjects(defaultSubjects);
-            try {
-              const batch = writeBatch(db);
-              defaultSubjects.forEach(s => batch.set(doc(db, 'subjects', s.id), cleanData(s)));
-              await batch.commit();
-            } catch (err) {}
-          }
+          // If empty, we keep our local defaults for critical collections
+          if (col.name === 'users') setUsers(defaultUsers);
+          if (col.name === 'questions') setQuestions(defaultQuestions);
+          if (col.name === 'subjects') setSubjects(defaultSubjects);
         }
         
         setLastSyncTime(new Date().toLocaleTimeString());
@@ -685,17 +489,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [loading, settings.currentAssessmentMonth, settings.academicYear, settings.autoAdvanceMonth]);
 
   const login = (userId: string) => {
-    if (userId === 'super_admin_1') {
-      const superAdminUser: User = {
-        id: 'super_admin_1',
-        role: 'super_admin',
-        name: 'Platform Super Admin',
-        password: 'password123'
-      };
-      setCurrentUser(superAdminUser);
-      localStorage.setItem('campus_auth', JSON.stringify(superAdminUser));
-      return;
-    }
     const user = users?.find((u) => u.id === userId) || defaultUsers.find(u => u.id === userId);
     if (user) {
       setCurrentUser(user);
@@ -746,32 +539,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const addUser = async (u: Omit<User, 'id'>) => {
     const id = `${u.role}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-    const targetCampusId = u.campusId || (currentUser?.role === 'super_admin' && inspectingCampusId ? inspectingCampusId : currentUser?.campusId) || 'campus_grand';
-    const newUser: User = { ...u, campusId: targetCampusId, id };
-    setUsers(prev => [...prev.filter(x => x.id !== id), newUser]);
     try {
-      await setDoc(doc(db, 'users', id), cleanData(newUser));
+      await setDoc(doc(db, 'users', id), cleanData({ ...u, id }));
     } catch (error) {
-      console.warn('Firestore sync fallback for addUser:', error);
+      handleFirestoreError(error, OperationType.CREATE, `users/${id}`);
     }
   };
 
   const addUsers = async (newUsersList: Omit<User, 'id'>[]) => {
     const batch = writeBatch(db);
-    const targetCampusId = (currentUser?.role === 'super_admin' && inspectingCampusId ? inspectingCampusId : currentUser?.campusId) || 'campus_grand';
-    const createdUsers: User[] = [];
     newUsersList.forEach((u, i) => {
       const id = `${u.role}_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 5)}`;
-      const userCampusId = u.campusId || targetCampusId;
-      const userObj: User = { ...u, campusId: userCampusId, id };
-      createdUsers.push(userObj);
-      batch.set(doc(db, 'users', id), cleanData(userObj));
+      batch.set(doc(db, 'users', id), cleanData({ ...u, id }));
     });
-    setUsers(prev => [...prev, ...createdUsers]);
     try {
       await batch.commit();
     } catch (error) {
-      console.warn('Firestore sync fallback for addUsers batch:', error);
+      handleFirestoreError(error, OperationType.WRITE, 'users (batch)');
     }
   };
 
@@ -928,9 +712,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
       const id = `m${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       const { existingId, ...cleanMark } = m as any;
-      const teacherId = cleanMark.teacherId || currentUser?.id;
-      const teacherName = cleanMark.teacherName || currentUser?.name;
-      batch.set(doc(db, 'cceMarks', id), cleanData({ ...cleanMark, teacherId, teacherName, id }));
+      batch.set(doc(db, 'cceMarks', id), cleanData({ ...cleanMark, id }));
     });
     
     try {
@@ -1113,176 +895,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const registerCampus = async (data: Omit<Campus, 'id' | 'status' | 'subscriptionStatus' | 'createdAt'> & { password?: string; collegeType?: string; domain?: string }) => {
-    const id = `campus_${Date.now()}`;
-    const cleanSlug = data.slug.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
-    const domain = data.domain || `${cleanSlug}.grandcampus.edu`;
-    const newCampus: Campus = {
-      id,
-      slug: cleanSlug,
-      domain,
-      name: data.name,
-      collegeType: data.collegeType || 'General College',
-      address: data.address,
-      adminEmail: data.adminEmail,
-      adminName: data.adminName,
-      phone: data.phone,
-      status: 'active',
-      subscriptionPlanId: data.subscriptionPlanId,
-      subscriptionStatus: 'trial',
-      createdAt: new Date().toISOString().split('T')[0]
-    };
-
-    setCampuses(prev => {
-      const updated = [...prev, newCampus];
-      localStorage.setItem('saas_campuses', JSON.stringify(updated));
-      return updated;
-    });
-
-    const newAdmin: User = {
-      id: `admin_${id}`,
-      campusId: id,
-      role: 'admin',
-      name: data.adminName,
-      password: data.password || 'password123'
-    };
-
-    setUsers(prev => [...prev, newAdmin]);
-    setAuditLogs(prev => [{ 
-      id: `log_${Date.now()}`, 
-      campusId: id, 
-      action: 'CAMPUS_REGISTERED', 
-      details: `New campus registered: ${data.name} (Domain: ${domain})`, 
-      timestamp: new Date().toLocaleTimeString() 
-    }, ...prev]);
-
-    try {
-      await setDoc(doc(db, 'campuses', id), cleanData(newCampus));
-      await setDoc(doc(db, 'users', newAdmin.id), cleanData(newAdmin));
-    } catch (e) {
-      console.warn('Firestore sync fallback for registerCampus:', e);
-    }
-  };
-
-  const updateCampus = async (campusId: string, updates: Partial<Campus>) => {
-    setCampuses(prev => {
-      const updated = prev.map(c => c.id === campusId ? { ...c, ...updates } : c);
-      localStorage.setItem('saas_campuses', JSON.stringify(updated));
-      return updated;
-    });
-    setAuditLogs(prev => [{ 
-      id: `log_${Date.now()}`, 
-      campusId, 
-      action: 'CAMPUS_UPDATED', 
-      details: `Campus details updated: ${updates.name || campusId}`, 
-      timestamp: new Date().toLocaleTimeString() 
-    }, ...prev]);
-
-    try {
-      await setDoc(doc(db, 'campuses', campusId), cleanData(updates), { merge: true });
-    } catch (e) {
-      console.warn('Firestore sync fallback for updateCampus:', e);
-    }
-  };
-
-  const updateCampusStatus = async (campusId: string, status: 'pending' | 'active' | 'suspended' | 'deactivated') => {
-    setCampuses(prev => {
-      const updated = prev.map(c => c.id === campusId ? { ...c, status } : c);
-      localStorage.setItem('saas_campuses', JSON.stringify(updated));
-      return updated;
-    });
-    setAuditLogs(prev => [{ 
-      id: `log_${Date.now()}`, 
-      campusId, 
-      action: status === 'suspended' ? 'CAMPUS_SUSPENDED' : 'CAMPUS_STATUS_UPDATED', 
-      details: `Campus status changed to ${status}`, 
-      timestamp: new Date().toLocaleTimeString() 
-    }, ...prev]);
-
-    try {
-      await setDoc(doc(db, 'campuses', campusId), { status }, { merge: true });
-    } catch (e) {
-      console.warn('Firestore sync fallback for updateCampusStatus:', e);
-    }
-  };
-
-  const updateCampusSubscription = async (campusId: string, planId: string, status: 'trial' | 'active' | 'grace' | 'expired') => {
-    setCampuses(prev => prev.map(c => c.id === campusId ? { ...c, subscriptionPlanId: planId, subscriptionStatus: status } : c));
-  };
-
-  const addSubscriptionPlan = async (plan: Omit<SubscriptionPlan, 'id'>) => {
-    const id = `plan_${Date.now()}`;
-    setSubscriptionPlans(prev => [...prev, { ...plan, id }]);
-  };
-
-  const updateSubscriptionPlan = async (planId: string, updates: Partial<SubscriptionPlan>) => {
-    setSubscriptionPlans(prev => prev.map(p => p.id === planId ? { ...p, ...updates } : p));
-  };
-
-  const sendPlatformAnnouncement = async (ann: Omit<PlatformAnnouncement, 'id' | 'createdAt'>) => {
-    const id = `ann_${Date.now()}`;
-    setPlatformAnnouncements(prev => [{ ...ann, id, createdAt: new Date().toLocaleDateString() }, ...prev]);
-  };
-
-  const addAuditLog = async (log: Omit<AuditLog, 'id' | 'timestamp'>) => {
-    const id = `log_${Date.now()}`;
-    setAuditLogs(prev => [{ ...log, id, timestamp: new Date().toLocaleTimeString() }, ...prev]);
-  };
-
-  const activeCampusId = currentUser
-    ? (currentUser.role === 'super_admin' ? inspectingCampusId : (currentUser.campusId || 'campus_grand'))
-    : null;
-
-  // Tenant-isolated users:
-  // If not logged in, return all users for login checks.
-  // If Super Admin and not inspecting a specific campus, return all users across platform.
-  // If inspecting or logged in as a campus user, strictly isolate to their campus!
-  const tenantUsers = (!currentUser || (currentUser.role === 'super_admin' && !inspectingCampusId))
-    ? (users || [])
-    : (users || []).filter(u => u.campusId === activeCampusId || (!u.campusId && activeCampusId === 'campus_grand'));
-
-  // Tenant-isolated campuses:
-  // For Super Admin or public login: all campuses.
-  // For logged in campus user: only their own campus so they cannot see other colleges.
-  const tenantCampuses = (!currentUser || currentUser.role === 'super_admin')
-    ? (campuses || [])
-    : (campuses || []).filter(c => c.id === (currentUser.campusId || 'campus_grand'));
-
-  // Tenant-isolated subjects:
-  const tenantSubjects = (!currentUser || currentUser.role === 'super_admin')
-    ? (subjects || [])
-    : (subjects || []).filter(s => !s.campusId || s.campusId === activeCampusId);
-
   return (
     <StoreContext.Provider
       value={{
         settings,
-        users: tenantUsers,
-        allUsers: users || [],
+        users: users || [],
         questions: questions || [],
         assessments: assessments || [],
         cceMarks: cceMarks || [],
-        subjects: tenantSubjects,
+        subjects: subjects || [],
         assessmentLogs: assessmentLogs || [],
         mentorInsights: mentorInsights || [],
         skillClubMarks: skillClubMarks || [],
         taskTemplates: taskTemplates || [],
         studentTasks: studentTasks || [],
-        campuses: tenantCampuses,
-        allCampuses: campuses || [],
-        subscriptionPlans: subscriptionPlans || [],
-        payments: payments || [],
-        platformAnnouncements: platformAnnouncements || [],
-        auditLogs: auditLogs || [],
         loading,
         syncStatus,
         lastSyncTime,
         forceCloudRefresh,
         currentUser,
         originalAdminId,
-        inspectingCampusId,
-        inspectCampus,
-        stopInspectingCampus,
         login,
         logout,
         impersonate,
@@ -1311,15 +943,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         addStudentTask,
         addStudentTasks,
         deleteStudentTask,
-        deleteStudentTasks,
-        registerCampus,
-        updateCampus,
-        updateCampusStatus,
-        updateCampusSubscription,
-        addSubscriptionPlan,
-        updateSubscriptionPlan,
-        sendPlatformAnnouncement,
-        addAuditLog
+        deleteStudentTasks
       }}
     >
       {children}

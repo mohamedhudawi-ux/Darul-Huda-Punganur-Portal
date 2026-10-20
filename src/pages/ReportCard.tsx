@@ -1,8 +1,7 @@
-import { useEffect } from 'react';
 import { Layout } from '../components/ui/Layout';
 import { useStore } from '../lib/store';
 import { useParams, useNavigate } from 'react-router-dom';
-import { GraduationCap, Printer, ArrowLeft, Sparkles, BookOpen, Award, CheckCircle2, Circle, FileText, AlertTriangle, Download, Clock } from 'lucide-react';
+import { GraduationCap, Printer, ArrowLeft, Sparkles, BookOpen, Award, CheckCircle2, Circle, FileText, AlertTriangle } from 'lucide-react';
 import { getGradeFromPercentage } from '../types';
 import { matchesMonth } from '../lib/utils';
 
@@ -60,25 +59,9 @@ export default function ReportCard() {
   const teacherAssessedCategories = new Set(teacherAssessments.map(a => a.category));
   const selfAssessedCategories = new Set(selfAssessments.map(a => a.category));
   
-  // Teacher assessment check:
-  const teacherCategories = requiredCategories.filter(c => !c.toLowerCase().includes('spiritual'));
-  const isTeacherDone = teacherCategories.length === 0 
-    ? teacherAssessments.length > 0 
-    : teacherCategories.every(cat => teacherAssessedCategories.has(cat));
-
-  // Student self-assessment check:
-  const isStudentDone = selfAssessments.length > 0;
-
-  // USER REQUIREMENT: "If any assessments of teachers or students are not done then show only the cce marks of that month...."
-  const allAssessmentsDone = isTeacherDone && isStudentDone;
-  const showOnlyCCEMarks = !allAssessmentsDone;
-
-  if (showOnlyCCEMarks) {
-    // Strictly show ONLY the CCE marks belonging to that month
-    studentMarks = studentMarks.filter(m => matchesMonth(m.month, month));
-  }
-
-  const assessmentsCompleted = allAssessmentsDone;
+  const assessmentsCompleted = studentAssessments.length > 0 || requiredCategories.every(cat => 
+    teacherAssessedCategories.has(cat) || selfAssessedCategories.has(cat)
+  );
 
   // 2. Check Tasks Completion
   const studentTemplates = taskTemplates.filter(t => String(t.classGrade) === String(student.classGrade) && matchesMonth(t.month, month));
@@ -89,6 +72,9 @@ export default function ReportCard() {
 
   const isReady = assessmentsCompleted && tasksCompleted;
   const isPrivileged = currentUser?.role === 'admin' || currentUser?.role === 'teacher';
+
+  // Strictly block the report generation if not ready and not a privileged user
+  // This adheres to the rule: "if the students task and assessment are in complete not filled the the report should not been generated"
 
 
   // Aggregate academic subjects
@@ -102,15 +88,7 @@ export default function ReportCard() {
     const totalMax = marks.reduce((sum, m) => sum + m.maxScore, 0);
     const outOf30 = totalMax > 0 ? (totalScore / totalMax) * 30 : 0;
     const percentage = (outOf30 / 30) * 100;
-    const rawMarks = marks.map(m => ({
-      cceLevel: m.cceLevel,
-      score: m.score,
-      maxScore: m.maxScore,
-      description: m.description,
-      date: m.date
-    }));
-    const descriptions = Array.from(new Set(marks.map(m => (m.description || '').trim()).filter(Boolean)));
-    return { subject, outOf30, percentage, count: marks.length, totalScore, totalMax, hasAbsent, allAbsent, rawMarks, descriptions };
+    return { subject, outOf30, percentage, count: marks.length, totalScore, totalMax, hasAbsent, allAbsent };
   });
 
   // Calculate Academic Overall
@@ -200,15 +178,6 @@ export default function ReportCard() {
     (showTotalMarks ? true : matchesMonth(t.month, month))
   );
 
-  useEffect(() => {
-    if (window.location.search.includes('download=true') || window.location.search.includes('print=true')) {
-      const timer = setTimeout(() => {
-        window.print();
-      }, 700);
-      return () => clearTimeout(timer);
-    }
-  }, []);
-
   const printReport = () => {
     window.print();
   };
@@ -219,80 +188,89 @@ export default function ReportCard() {
     <div className="print-report-wrapper">
       <Layout>
         {/* Top Action Bar (hidden in print) */}
-        <div className="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 print:hidden w-full px-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <button 
-              onClick={() => navigate(-1)} 
-              className="flex items-center gap-2 text-slate-600 hover:text-blue-700 transition-colors text-xs font-black uppercase tracking-wider bg-white px-4 py-2.5 rounded-xl border border-slate-200 shadow-sm"
-            >
-              <ArrowLeft className="w-4 h-4" /> Back to List
-            </button>
-            {isPrivileged && (
-              <span className="px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-amber-600" />
-                Admin Privileged Access • Download Enabled For All Statuses
-              </span>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            <button 
-              onClick={printReport}
-              disabled={isReportEmpty && !isPrivileged}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-black transition-all shadow-md text-xs uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Download and save report card as PDF"
-            >
-              <Download className="w-4 h-4" /> Download Report Card (PDF)
-            </button>
-            <button 
-              onClick={printReport}
-              disabled={isReportEmpty && !isPrivileged}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl font-black transition-all shadow-md text-xs uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Print report card directly"
-            >
-              <Printer className="w-4 h-4" /> Print (Full A4)
-            </button>
-          </div>
+        <div className="mb-4 flex justify-between items-center print:hidden w-full px-4">
+          <button 
+            onClick={() => navigate(-1)} 
+            className="flex items-center gap-2 text-slate-600 hover:text-blue-700 transition-colors text-xs font-black uppercase tracking-wider bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back to List
+          </button>
+          <button 
+            onClick={printReport}
+            disabled={isReportEmpty || (!isReady && !isPrivileged)}
+            className="flex items-center gap-2 bg-blue-700 text-white px-5 py-2 rounded-xl font-black hover:bg-blue-800 transition-all shadow-md text-xs uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Printer className="w-4 h-4" /> Print Report Card (Full A4)
+          </button>
         </div>
 
-        {showOnlyCCEMarks && (
-          <div className="w-full bg-blue-50 border border-blue-200 text-blue-900 p-4 rounded-2xl shadow-xs mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 print:hidden">
+        {!isReady && !isPrivileged && (
+          <div className="w-full bg-white p-12 rounded-3xl border border-slate-200 text-center shadow-xl mb-6 max-w-2xl mx-auto mt-10 animate-in zoom-in duration-300">
+            <div className="w-20 h-20 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-white shadow-lg">
+              <AlertTriangle className="w-10 h-10" />
+            </div>
+            <h3 className="text-2xl font-black text-slate-900 mb-3 uppercase tracking-tight">Report Not Generated</h3>
+            <p className="text-slate-500 text-sm leading-relaxed mb-8 font-medium">
+              Grand Campus Assurance requires all evaluations to be finalized before generating the official transcript. Currently, the following requirements are missing:
+            </p>
+            
+            <div className="space-y-3 mb-8 text-left max-w-xs mx-auto">
+              {!assessmentsCompleted && (
+                <div className="flex items-center gap-3 p-3 bg-rose-50 rounded-xl border border-rose-100">
+                  <div className="w-2 h-2 bg-rose-500 rounded-full animate-pulse" />
+                  <span className="text-[11px] font-black text-rose-700 uppercase tracking-wider">Behavioural Assessments</span>
+                </div>
+              )}
+              {!tasksCompleted && (
+                <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl border border-amber-100">
+                  <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+                  <span className="text-[11px] font-black text-amber-700 uppercase tracking-wider">Assigned Task Completion</span>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-xl text-[10px] text-slate-400 font-bold uppercase tracking-widest border border-slate-100">
+              Please contact your Mentor or Grade Head to finalize your monthly records.
+            </div>
+          </div>
+        )}
+
+        {!isReady && isPrivileged && (
+          <div className="w-full bg-amber-600 text-white p-4 rounded-xl shadow-lg mb-6 flex items-center justify-between animate-in slide-in-from-top duration-300 print:hidden">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold shrink-0">
-                <BookOpen className="w-4 h-4" />
+              <div className="bg-white/20 p-2 rounded-lg">
+                <AlertTriangle className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-xs font-black uppercase tracking-wider text-blue-950">
-                  CCE Marks Evaluation Mode (Assessments Incomplete)
-                </p>
-                <p className="text-xs text-blue-800 mt-0.5">
-                  Teacher or student behavioral assessments for {month} are not yet completed. Displaying verified Continuous Comprehensive Evaluation (CCE) marks for this period. Admin can download or print this report card anytime.
-                </p>
+                <p className="text-xs font-black uppercase tracking-widest">Incomplete Data Warning</p>
+                <p className="text-[10px] font-bold opacity-90">This report is visible to you as {currentUser?.role}, but it is BLOCKED for students because tasks/assessments are incomplete.</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={printReport}
-                className="px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm"
-              >
-                <Download className="w-3.5 h-3.5" /> Download Pending Card
-              </button>
-            </div>
+            <span className="text-[10px] font-black bg-white/20 px-2 py-1 rounded uppercase">Preview Mode</span>
           </div>
         )}
 
-        {isReportEmpty && (
-          <div className="w-full bg-white p-12 rounded-2xl border border-slate-200 text-center shadow-sm mb-6">
-            <div className="w-16 h-16 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-4">
-              <FileText className="w-8 h-8" />
-            </div>
-            <h3 className="text-xl font-black text-slate-800 mb-2">No Records Found</h3>
-            <p className="text-slate-500 max-w-md mx-auto text-sm">There are no academic CCE marks or assessments logged for <strong>{month}</strong> yet. Please check back once your teachers have entered your marks.</p>
-          </div>
-        )}
+        {(isReady || isPrivileged) && (
+          <>
+            {isReportEmpty && !isPrivileged && (
+              <div className="w-full bg-white p-12 rounded-2xl border border-slate-200 text-center shadow-sm mb-6">
+                <div className="w-16 h-16 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FileText className="w-8 h-8" />
+                </div>
+                <h3 className="text-xl font-black text-slate-800 mb-2">No Records Found</h3>
+                <p className="text-slate-500 max-w-md mx-auto text-sm">There are no academic marks, assessments, or tasks logged for <strong>{month}</strong> yet. Please check again once your teachers have completed your evaluations.</p>
+              </div>
+            )}
 
-        {!isReportEmpty && (
-          <div className="print-report-container bg-white p-8 sm:p-16 rounded-2xl shadow-2xl border-2 border-slate-900/10 w-full print:p-8 print:shadow-none print:border-none print:max-w-full text-slate-900 leading-relaxed relative overflow-hidden print:overflow-visible min-h-[1100px] print:min-h-0">
+            {isReportEmpty && isPrivileged && (
+              <div className="w-full bg-amber-50 p-6 rounded-2xl border border-amber-200 text-center shadow-sm mb-6 print:hidden">
+                <h3 className="text-lg font-black text-amber-800 mb-1">Administrative Note: No Data</h3>
+                <p className="text-amber-700 text-sm">This report card is currently blank for <strong>{month}</strong> because no marks or assessments have been synced for this student. Ensure teachers have entered data for this period.</p>
+              </div>
+            )}
+
+            {/* Main Printable Card (Full Width Optimized) */}
+            <div className="print-report-container bg-white p-8 sm:p-16 rounded-2xl shadow-2xl border-2 border-slate-900/10 w-full print:p-8 print:shadow-none print:border-none print:max-w-full text-slate-900 leading-relaxed relative overflow-hidden print:overflow-visible min-h-[1100px] print:min-h-0">
         
         {/* 1. Header Section */}
         <div className="border-b-4 border-double border-slate-900 pb-4 mb-6 print:pb-6 print:mb-8">
@@ -352,373 +330,238 @@ export default function ReportCard() {
           </div>
         </div>
 
-        {/* 2. Rating Strip */}
-        {showOnlyCCEMarks ? (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-4 print:mb-8 print:gap-4">
-            <div className="bg-blue-50/70 border border-blue-100 rounded-xl px-4 py-2.5 flex items-center justify-between print:bg-slate-50 print:border-slate-300 print:py-4 print:px-6">
-              <div>
-                <p className="text-[8px] font-black text-blue-900/60 uppercase tracking-widest print:text-[10px]">Academic Evaluation (CCE)</p>
-                <p className="text-xs font-black text-blue-950 mt-0.5 print:text-base">
-                  {aggregatedMarks.length > 0 ? `${academicTotalCCE.toFixed(1)} / ${academicMaxCCE} (${academicTotalPct.toFixed(0)}%)` : 'No Records'}
-                </p>
-              </div>
-              {overallAcademicGrade && (
-                <span className="text-xs font-black bg-blue-700 text-white px-2.5 py-0.5 rounded-md shadow-xs print:text-sm print:px-3">
-                  {overallAcademicGrade.label}
-                </span>
-              )}
+        {/* 2. Compact Holistic Rating Strip (Minimal Height) */}
+        <div className="grid grid-cols-3 gap-2.5 mb-4 print:mb-8 print:gap-4">
+          <div className="bg-blue-50/70 border border-blue-100 rounded-xl px-3.5 py-2 flex items-center justify-between print:bg-slate-50 print:border-slate-300 print:py-4 print:px-6">
+            <div>
+              <p className="text-[8px] font-black text-blue-900/60 uppercase tracking-widest print:text-[10px]">Academic (CCE)</p>
+              <p className="text-xs font-black text-blue-950 mt-0.5 print:text-base">
+                {aggregatedMarks.length > 0 ? `${academicTotalCCE.toFixed(1)} / ${academicMaxCCE} (${academicTotalPct.toFixed(0)}%)` : 'No Records'}
+              </p>
             </div>
-
-            <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 flex items-center justify-between print:bg-white print:border-slate-300">
-              <div>
-                <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest print:text-[10px]">Reporting Cycle</p>
-                <p className="text-xs font-black text-slate-800 mt-0.5 print:text-base">{month}</p>
-              </div>
-              <span className="text-[9px] font-bold uppercase text-slate-600 bg-slate-200/70 px-2 py-0.5 rounded">
-                {settings.academicYear || 'Current Year'}
+            {overallAcademicGrade && (
+              <span className="text-xs font-black bg-blue-700 text-white px-2 py-0.5 rounded-md shadow-xs print:text-sm print:px-3">
+                {overallAcademicGrade.label}
               </span>
-            </div>
+            )}
+          </div>
 
-            <div className="bg-emerald-50/70 border border-emerald-100 rounded-xl px-4 py-2.5 flex items-center justify-between print:bg-white print:border-slate-300">
-              <div>
-                <p className="text-[8px] font-black text-emerald-900/60 uppercase tracking-widest print:text-[10px]">Evaluation Status</p>
-                <p className="text-xs font-black text-emerald-950 mt-0.5 print:text-sm">CCE Marks Published</p>
-              </div>
-              <span className="text-[9px] font-black uppercase text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded border border-emerald-200">
-                Verified
+          <div className="bg-emerald-50/70 border border-emerald-100 rounded-xl px-3.5 py-2 flex items-center justify-between print:bg-slate-50 print:border-slate-200">
+            <div>
+              <p className="text-[8px] font-black text-emerald-900/60 uppercase tracking-widest">Conduct & Wellbeing</p>
+              <p className="text-xs font-black text-emerald-950 mt-0.5">
+                {wellbeingAvg !== null ? `${wellbeingAvg.toFixed(0)}% Index` : 'Pending Evaluation'}
+              </p>
+            </div>
+            {overallWellbeingGrade && (
+              <span className="text-xs font-black bg-emerald-700 text-white px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1">
+                {overallWellbeingGrade.label} {overallWellbeingGrade.emoji}
               </span>
-            </div>
+            )}
           </div>
-        ) : (
-          <div className="grid grid-cols-3 gap-2.5 mb-4 print:mb-8 print:gap-4">
-            <div className="bg-blue-50/70 border border-blue-100 rounded-xl px-3.5 py-2 flex items-center justify-between print:bg-slate-50 print:border-slate-300 print:py-4 print:px-6">
-              <div>
-                <p className="text-[8px] font-black text-blue-900/60 uppercase tracking-widest print:text-[10px]">Academic (CCE)</p>
-                <p className="text-xs font-black text-blue-950 mt-0.5 print:text-base">
-                  {aggregatedMarks.length > 0 ? `${academicTotalCCE.toFixed(1)} / ${academicMaxCCE} (${academicTotalPct.toFixed(0)}%)` : 'No Records'}
-                </p>
-              </div>
-              {overallAcademicGrade && (
-                <span className="text-xs font-black bg-blue-700 text-white px-2 py-0.5 rounded-md shadow-xs print:text-sm print:px-3">
-                  {overallAcademicGrade.label}
-                </span>
-              )}
-            </div>
 
-            <div className="bg-emerald-50/70 border border-emerald-100 rounded-xl px-3.5 py-2 flex items-center justify-between print:bg-slate-50 print:border-slate-200">
-              <div>
-                <p className="text-[8px] font-black text-emerald-900/60 uppercase tracking-widest">Conduct & Wellbeing</p>
-                <p className="text-xs font-black text-emerald-950 mt-0.5">
-                  {wellbeingAvg !== null ? `${wellbeingAvg.toFixed(0)}% Index` : 'Pending Evaluation'}
-                </p>
-              </div>
-              {overallWellbeingGrade && (
-                <span className="text-xs font-black bg-emerald-700 text-white px-2 py-0.5 rounded-md shadow-xs flex items-center gap-1">
-                  {overallWellbeingGrade.label} {overallWellbeingGrade.emoji}
-                </span>
-              )}
+          <div className="bg-indigo-900 text-white border border-indigo-950 rounded-xl px-3.5 py-2 flex items-center justify-between shadow-xs print:bg-slate-900">
+            <div>
+              <p className="text-[8px] font-black text-indigo-300 uppercase tracking-widest">Holistic Index</p>
+              <p className="text-xs font-black text-white mt-0.5">
+                {holisticOverallAvg !== null ? `${holisticOverallAvg.toFixed(0)}% Overall` : 'In Progress'}
+              </p>
             </div>
-
-            <div className="bg-indigo-900 text-white border border-indigo-950 rounded-xl px-3.5 py-2 flex items-center justify-between shadow-xs print:bg-slate-900">
-              <div>
-                <p className="text-[8px] font-black text-indigo-300 uppercase tracking-widest">Holistic Index</p>
-                <p className="text-xs font-black text-white mt-0.5">
-                  {holisticOverallAvg !== null ? `${holisticOverallAvg.toFixed(0)}% Overall` : 'In Progress'}
-                </p>
-              </div>
-              {holisticOverallGrade && (
-                <span className="text-xs font-black bg-white text-indigo-950 px-2 py-0.5 rounded-md shadow-xs">
-                  Grade {holisticOverallGrade.label}
-                </span>
-              )}
-            </div>
+            {holisticOverallGrade && (
+              <span className="text-xs font-black bg-white text-indigo-950 px-2 py-0.5 rounded-md shadow-xs">
+                Grade {holisticOverallGrade.label}
+              </span>
+            )}
           </div>
-        )}
+        </div>
 
-        {/* 3. DUAL-TABLE SIDE-BY-SIDE MATRIX OR CCE-ONLY FULL TABLE */}
-        {showOnlyCCEMarks ? (
-          /* SHOW ONLY THE CCE MARKS OF THAT MONTH */
-          <div className="mb-4 print:mb-8">
-            <div className="border border-slate-300 rounded-xl overflow-hidden shadow-xs bg-white print:border-slate-400">
-              <div className="bg-slate-900 text-white px-3.5 py-2 flex justify-between items-center print:py-3 print:px-4">
-                <div className="flex items-center gap-2">
-                  <BookOpen className="w-4 h-4 text-blue-400 print:w-5 print:h-5" />
-                  <span className="text-[10px] font-black uppercase tracking-wider print:text-[12px]">Academic Performance (Continuous Comprehensive Evaluation - CCE)</span>
-                </div>
-                <span className="text-[8px] font-bold text-slate-300 uppercase print:text-[10px]">Weight: 30 Marks</span>
+        {/* 3. DUAL-TABLE SIDE-BY-SIDE MATRIX */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 print:grid-cols-2 print:gap-8 print:mb-8 items-start">
+          
+          {/* Table A: Character, Spiritual & Behavioral Wellbeing */}
+          <div className="border border-slate-300 rounded-xl overflow-hidden shadow-xs bg-white print:border-slate-400">
+            <div className="bg-slate-900 text-white px-3 py-1.5 flex justify-between items-center print:py-3 print:px-4">
+              <div className="flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400 print:w-5 print:h-5" />
+                <span className="text-[9px] font-black uppercase tracking-wider print:text-[11px]">A. Wellbeing & Conduct Evaluation</span>
               </div>
+              <span className="text-[8px] font-bold text-slate-300 uppercase print:text-[10px]">Self & Mentor Assessment</span>
+            </div>
 
-              <table className="w-full text-left border-collapse text-[10px] print:text-[12px]">
-                <thead>
-                  <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-black uppercase tracking-wider text-[8px] print:text-[10px]">
-                    <th className="px-3.5 py-2 print:py-3 print:px-4">Subject</th>
-                    <th className="px-2.5 py-2 text-right print:py-3 print:px-4">Raw Score</th>
-                    <th className="px-2.5 py-2 text-right print:py-3 print:px-4">CCE (30)</th>
-                    <th className="px-3.5 py-2 text-right print:py-3 print:px-4">Grade</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {aggregatedMarks.length > 0 ? (
-                    aggregatedMarks.map((mark, i) => {
-                      const grade = getGradeFromPercentage(mark.percentage);
-                      return (
-                        <tr key={i} className="hover:bg-slate-50/70">
-                          <td className="px-3.5 py-2 font-bold text-slate-900 truncate max-w-[200px] print:max-w-none print:py-2.5 print:px-4">
-                            {mark.subject}
-                          </td>
-                          <td className="px-2.5 py-2 text-right font-medium text-slate-600 print:py-2.5 print:px-4">
-                            {mark.allAbsent || mark.totalScore === 0 ? (
-                              <span className="text-yellow-900 bg-yellow-200 px-2 py-0.5 rounded font-black">Ab / 0</span>
-                            ) : (
-                              <>
-                                {mark.totalScore}/{mark.totalMax}
-                                {mark.hasAbsent && <span className="ml-1 text-[8px] text-yellow-800 bg-yellow-200 px-1 rounded font-bold">(Ab)</span>}
-                              </>
-                            )}
-                          </td>
-                          <td className="px-2.5 py-2 text-right font-black text-slate-900 print:py-2.5 print:px-4">
-                            {mark.allAbsent || mark.totalScore === 0 ? '0.0' : mark.outOf30.toFixed(1)}
-                          </td>
-                          <td className="px-3.5 py-2 text-right font-black text-blue-800 print:py-2.5 print:px-4">
-                            {grade.label}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan={4} className="px-3 py-6 text-center text-yellow-900 bg-yellow-100 font-bold uppercase text-[9px] print:text-[11px] print:py-12">
-                        Incomplete CCE
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-                {aggregatedMarks.length > 0 && (
-                  <tfoot>
-                    <tr className="bg-slate-50 border-t-2 border-slate-300 font-black text-slate-900 text-[9px] print:text-[11px]">
-                      <td className="px-3.5 py-2 uppercase print:py-3 print:px-4">Academic Aggregate</td>
-                      <td className="px-2.5 py-2 text-right text-slate-600 print:py-3 print:px-4">
-                        {academicTotalScore}/{academicTotalMax}
-                        {academicHasAbsent && <span className="ml-1 text-[7px] text-rose-500 font-bold">(Inc. Ab)</span>}
-                      </td>
-                      <td className="px-2.5 py-2 text-right text-blue-900 print:py-3 print:px-4">{academicTotalCCE.toFixed(1)}/{academicMaxCCE}</td>
-                      <td className="px-3.5 py-2 text-right text-blue-900 print:py-3 print:px-4">{overallAcademicGrade?.label || '-'}</td>
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
-              
-              {/* Skill Club Subsection if points exist (hidden in CCE-only mode) */}
-              {studentClubMarks.length > 0 && !showOnlyCCEMarks && (
-                <>
-                  <div className="bg-amber-50 border-t border-slate-200 px-3 py-1.5 flex items-center gap-2 print:py-3 print:px-4">
-                    <Award className="w-3.5 h-3.5 text-amber-600 print:w-5 print:h-5" />
-                    <span className="text-[9px] font-black uppercase tracking-wider text-amber-800 print:text-[11px]">Extra-Curricular: Skill Clubs</span>
-                  </div>
-                  <table className="w-full text-left border-collapse text-[10px] bg-amber-50/30 print:text-[12px]">
-                    <tbody className="divide-y divide-amber-100/50">
-                      <tr>
-                        <td className="px-3.5 py-2 font-bold text-amber-900 print:py-3 print:px-4">Total Skill Club Points Earned</td>
-                        <td className="px-3.5 py-2 text-right font-black text-amber-700 print:py-3 print:px-4">
-                          {totalClubScore} pts
+            <table className="w-full text-left border-collapse text-[10px] print:text-[12px]">
+              <thead>
+                <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-black uppercase tracking-wider text-[8px] print:text-[10px]">
+                  <th className="px-3 py-1.5 print:py-3 print:px-4">Category</th>
+                  <th className="px-2 py-1.5 print:py-3 print:px-4">Evaluated Parameter</th>
+                  <th className="px-3 py-1.5 text-right print:py-3 print:px-4">Rating / Grade</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {wellbeingList.length > 0 ? (
+                  wellbeingList.map((item, idx) => {
+                    const isSpiritual = (item.category || '').toLowerCase().includes('spiritual');
+                    return (
+                      <tr key={idx} className="hover:bg-slate-50/70">
+                        <td className="px-3 py-1.5 font-bold print:py-3 print:px-4">
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tight print:text-[10px] ${
+                            isSpiritual 
+                              ? 'bg-indigo-50 text-indigo-800 border border-indigo-200' 
+                              : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                          }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${isSpiritual ? 'bg-indigo-600' : 'bg-emerald-600'}`}></span>
+                            {item.category.replace(' Wellbeing', '').replace('Wellbeing', '')}
+                          </span>
+                        </td>
+                        <td className="px-2 py-1.5 font-bold text-slate-800 truncate max-w-[150px] print:max-w-none print:py-3 print:px-4">
+                          {item.field}
+                        </td>
+                        <td className="px-3 py-1.5 text-right font-black print:py-3 print:px-4">
+                          {item.grade ? (
+                            <span className="inline-flex items-center gap-1 text-slate-900">
+                              <span>{item.grade.label}</span>
+                              <span className="text-xs print:text-sm">{item.grade.emoji}</span>
+                            </span>
+                          ) : (
+                            <span className="text-[8px] font-bold text-slate-400 uppercase italic print:text-[10px]">Pending</span>
+                          )}
                         </td>
                       </tr>
-                    </tbody>
-                  </table>
-                </>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={3} className="px-3 py-6 text-center text-slate-400 font-bold uppercase text-[9px] print:text-[11px] print:py-12">
+                      No character assessment parameters configured
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            {/* NEW: Completed Tasks Subsection */}
+            <div className="bg-indigo-50 border-t border-slate-200 px-3 py-1.5 flex items-center gap-2 print:py-3 print:px-4">
+              <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600 print:w-5 print:h-5" />
+              <span className="text-[9px] font-black uppercase tracking-wider text-indigo-800 print:text-[11px]">Monthly Growth: Completed Tasks</span>
+            </div>
+            <div className="p-3 bg-indigo-50/30 print:p-6">
+              {studentCompletedTasks.length > 0 ? (
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 print:gap-y-3">
+                  {studentCompletedTasks.map((task, i) => (
+                    <div key={i} className="flex items-start gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-full bg-indigo-600 mt-0.5 shrink-0 print:w-3.5 print:h-3.5"></div>
+                      <div>
+                        <p className="text-[9px] font-bold text-indigo-900 leading-tight print:text-[11px]">
+                          {task.customTitle || taskTemplates.find(t => t.id === task.templateId)?.title || 'Growth Task'}
+                        </p>
+                        {task.quantity && (
+                          <p className="text-[8px] font-black text-indigo-500 uppercase tracking-tighter print:text-[10px]">Done: {task.quantity}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-indigo-400 font-bold uppercase text-[8px] italic py-2 print:text-[10px] print:py-4">
+                  No monthly tasks logged
+                </p>
               )}
             </div>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 print:grid-cols-2 print:gap-8 print:mb-8 items-start">
-            
-            {/* Table A: Character, Spiritual & Behavioral Wellbeing */}
-            <div className="border border-slate-300 rounded-xl overflow-hidden shadow-xs bg-white print:border-slate-400">
-              <div className="bg-slate-900 text-white px-3 py-1.5 flex justify-between items-center print:py-3 print:px-4">
-                <div className="flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400 print:w-5 print:h-5" />
-                  <span className="text-[9px] font-black uppercase tracking-wider print:text-[11px]">A. Wellbeing & Conduct Evaluation</span>
-                </div>
-                <span className="text-[8px] font-bold text-slate-300 uppercase print:text-[10px]">Self & Mentor Assessment</span>
-              </div>
 
-              <table className="w-full text-left border-collapse text-[10px] print:text-[12px]">
-                <thead>
-                  <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-black uppercase tracking-wider text-[8px] print:text-[10px]">
-                    <th className="px-3 py-1.5 print:py-3 print:px-4">Category</th>
-                    <th className="px-2 py-1.5 print:py-3 print:px-4">Evaluated Parameter</th>
-                    <th className="px-3 py-1.5 text-right print:py-3 print:px-4">Rating / Grade</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {wellbeingList.length > 0 ? (
-                    wellbeingList.map((item, idx) => {
-                      const isSpiritual = (item.category || '').toLowerCase().includes('spiritual');
-                      return (
-                        <tr key={idx} className="hover:bg-slate-50/70">
-                          <td className="px-3 py-1.5 font-bold print:py-3 print:px-4">
-                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tight print:text-[10px] ${
-                              isSpiritual 
-                                ? 'bg-indigo-50 text-indigo-800 border border-indigo-200' 
-                                : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                            }`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${isSpiritual ? 'bg-indigo-600' : 'bg-emerald-600'}`}></span>
-                              {item.category.replace(' Wellbeing', '').replace('Wellbeing', '')}
-                            </span>
-                          </td>
-                          <td className="px-2 py-1.5 font-bold text-slate-800 truncate max-w-[150px] print:max-w-none print:py-3 print:px-4">
-                            {item.field}
-                          </td>
-                          <td className="px-3 py-1.5 text-right font-black print:py-3 print:px-4">
-                            {item.grade ? (
-                              <span className="inline-flex items-center gap-1 text-slate-900">
-                                <span>{item.grade.label}</span>
-                                <span className="text-xs print:text-sm">{item.grade.emoji}</span>
-                              </span>
-                            ) : (
-                              <span className="text-[8px] font-bold text-slate-400 uppercase italic print:text-[10px]">Pending</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan={3} className="px-3 py-6 text-center text-slate-400 font-bold uppercase text-[9px] print:text-[11px] print:py-12">
-                        No character assessment parameters configured
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-
-              {/* Completed Tasks Subsection */}
-              <div className="bg-indigo-50 border-t border-slate-200 px-3 py-1.5 flex items-center gap-2 print:py-3 print:px-4">
-                <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600 print:w-5 print:h-5" />
-                <span className="text-[9px] font-black uppercase tracking-wider text-indigo-800 print:text-[11px]">Monthly Growth: Completed Tasks</span>
+          {/* Table B: Academic CCE Performance */}
+          <div className="border border-slate-300 rounded-xl overflow-hidden shadow-xs bg-white print:border-slate-400">
+            <div className="bg-slate-900 text-white px-3 py-1.5 flex justify-between items-center print:py-3 print:px-4">
+              <div className="flex items-center gap-1.5">
+                <BookOpen className="w-3.5 h-3.5 text-blue-400 print:w-5 print:h-5" />
+                <span className="text-[9px] font-black uppercase tracking-wider print:text-[11px]">B. Academic Performance (CCE)</span>
               </div>
-              <div className="p-3 bg-indigo-50/30 print:p-6">
-                {studentCompletedTasks.length > 0 ? (
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 print:gap-y-3">
-                    {studentCompletedTasks.map((task, i) => (
-                      <div key={i} className="flex items-start gap-1.5">
-                        <div className="w-2.5 h-2.5 rounded-full bg-indigo-600 mt-0.5 shrink-0 print:w-3.5 print:h-3.5"></div>
-                        <div>
-                          <p className="text-[9px] font-bold text-indigo-900 leading-tight print:text-[11px]">
-                            {task.customTitle || taskTemplates.find(t => t.id === task.templateId)?.title || 'Growth Task'}
-                          </p>
-                          {task.quantity && (
-                            <p className="text-[8px] font-black text-indigo-500 uppercase tracking-tighter print:text-[10px]">Done: {task.quantity}</p>
+              <span className="text-[8px] font-bold text-slate-300 uppercase print:text-[10px]">Weight: 30 Marks</span>
+            </div>
+
+            <table className="w-full text-left border-collapse text-[10px] print:text-[12px]">
+              <thead>
+                <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-black uppercase tracking-wider text-[8px] print:text-[10px]">
+                  <th className="px-3 py-1.5 print:py-3 print:px-4">Subject</th>
+                  <th className="px-2 py-1.5 text-right print:py-3 print:px-4">Raw Score</th>
+                  <th className="px-2 py-1.5 text-right print:py-3 print:px-4">CCE (30)</th>
+                  <th className="px-3 py-1.5 text-right print:py-3 print:px-4">Grade</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {aggregatedMarks.length > 0 ? (
+                  aggregatedMarks.map((mark, i) => {
+                    const grade = getGradeFromPercentage(mark.percentage);
+                    return (
+                      <tr key={i} className="hover:bg-slate-50/70">
+                        <td className="px-3 py-1.5 font-bold text-slate-900 truncate max-w-[140px] print:max-w-none print:py-3 print:px-4">{mark.subject}</td>
+                        <td className="px-2 py-1.5 text-right font-medium text-slate-600 print:py-3 print:px-4">
+                          {mark.allAbsent ? (
+                            <span className="text-rose-600 font-black">Ab</span>
+                          ) : (
+                            <>
+                              {mark.totalScore}/{mark.totalMax}
+                              {mark.hasAbsent && <span className="ml-1 text-[8px] text-rose-500 font-bold">(Ab)</span>}
+                            </>
                           )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                        </td>
+                        <td className="px-2 py-1.5 text-right font-black text-slate-900 print:py-3 print:px-4">
+                          {mark.allAbsent ? '0.0' : mark.outOf30.toFixed(1)}
+                        </td>
+                        <td className="px-3 py-1.5 text-right font-black text-blue-800 print:py-3 print:px-4">
+                          {grade.label}
+                        </td>
+                      </tr>
+                    );
+                  })
                 ) : (
-                  <p className="text-center text-indigo-400 font-bold uppercase text-[8px] italic py-2 print:text-[10px] print:py-4">
-                    No monthly tasks logged
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Table B: Academic CCE Performance */}
-            <div className="border border-slate-300 rounded-xl overflow-hidden shadow-xs bg-white print:border-slate-400">
-              <div className="bg-slate-900 text-white px-3 py-1.5 flex justify-between items-center print:py-3 print:px-4">
-                <div className="flex items-center gap-1.5">
-                  <BookOpen className="w-3.5 h-3.5 text-blue-400 print:w-5 print:h-5" />
-                  <span className="text-[9px] font-black uppercase tracking-wider print:text-[11px]">B. Academic Performance (CCE)</span>
-                </div>
-                <span className="text-[8px] font-bold text-slate-300 uppercase print:text-[10px]">Weight: 30 Marks</span>
-              </div>
-
-              <table className="w-full text-left border-collapse text-[10px] print:text-[12px]">
-                <thead>
-                  <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-black uppercase tracking-wider text-[8px] print:text-[10px]">
-                    <th className="px-3 py-1.5 print:py-3 print:px-4">Subject</th>
-                    <th className="px-2 py-1.5 text-right print:py-3 print:px-4">Raw Score</th>
-                    <th className="px-2 py-1.5 text-right print:py-3 print:px-4">CCE (30)</th>
-                    <th className="px-3 py-1.5 text-right print:py-3 print:px-4">Grade</th>
+                  <tr>
+                    <td colSpan={4} className="px-3 py-6 text-center text-slate-400 font-bold uppercase text-[9px] print:text-[11px] print:py-12">
+                      No CCE marks recorded for this period
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {aggregatedMarks.length > 0 ? (
-                    aggregatedMarks.map((mark, i) => {
-                      const grade = getGradeFromPercentage(mark.percentage);
-                      return (
-                        <tr key={i} className="hover:bg-slate-50/70">
-                          <td className="px-3 py-1.5 font-bold text-slate-900 truncate max-w-[140px] print:max-w-none print:py-2.5 print:px-4">
-                            {mark.subject}
-                          </td>
-                          <td className="px-2 py-1.5 text-right font-medium text-slate-600 print:py-2.5 print:px-4">
-                            {mark.allAbsent || mark.totalScore === 0 ? (
-                              <span className="text-yellow-900 bg-yellow-200 px-2 py-0.5 rounded font-black">Ab / 0</span>
-                            ) : (
-                              <>
-                                {mark.totalScore}/{mark.totalMax}
-                                {mark.hasAbsent && <span className="ml-1 text-[8px] text-yellow-800 bg-yellow-200 px-1 rounded font-bold">(Ab)</span>}
-                              </>
-                            )}
-                          </td>
-                          <td className="px-2 py-1.5 text-right font-black text-slate-900 print:py-2.5 print:px-4">
-                            {mark.allAbsent || mark.totalScore === 0 ? '0.0' : mark.outOf30.toFixed(1)}
-                          </td>
-                          <td className="px-3 py-1.5 text-right font-black text-blue-800 print:py-2.5 print:px-4">
-                            {grade.label}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan={4} className="px-3 py-6 text-center text-yellow-900 bg-yellow-100 font-bold uppercase text-[9px] print:text-[11px] print:py-12">
-                        Incomplete CCE
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-                {aggregatedMarks.length > 0 && (
-                  <tfoot>
-                    <tr className="bg-slate-50 border-t-2 border-slate-300 font-black text-slate-900 text-[9px] print:text-[11px]">
-                      <td className="px-3 py-1.5 uppercase print:py-3 print:px-4">Academic Aggregate</td>
-                      <td className="px-2 py-1.5 text-right text-slate-600 print:py-3 print:px-4">
-                        {academicTotalScore}/{academicTotalMax}
-                        {academicHasAbsent && <span className="ml-1 text-[7px] text-rose-500 font-bold">(Inc. Ab)</span>}
-                      </td>
-                      <td className="px-2 py-1.5 text-right text-blue-900 print:py-3 print:px-4">{academicTotalCCE.toFixed(1)}/{academicMaxCCE}</td>
-                      <td className="px-3 py-1.5 text-right text-blue-900 print:py-3 print:px-4">{overallAcademicGrade?.label || '-'}</td>
-                    </tr>
-                  </tfoot>
                 )}
-              </table>
-              
-              {/* Skill Club Subsection */}
-              <div className="bg-amber-50 border-t border-slate-200 px-3 py-1.5 flex items-center gap-2 print:py-3 print:px-4">
-                <Award className="w-3.5 h-3.5 text-amber-600 print:w-5 print:h-5" />
-                <span className="text-[9px] font-black uppercase tracking-wider text-amber-800 print:text-[11px]">Extra-Curricular: Skill Clubs</span>
-              </div>
-              <table className="w-full text-left border-collapse text-[10px] bg-amber-50/30 print:text-[12px]">
-                <tbody className="divide-y divide-amber-100/50">
-                  {studentClubMarks.length > 0 ? (
-                    <tr>
-                      <td className="px-3 py-1.5 font-bold text-amber-900 print:py-3 print:px-4">Total Skill Club Points Earned</td>
-                      <td className="px-3 py-1.5 text-right font-black text-amber-700 print:py-3 print:px-4">
-                        {totalClubScore} pts
-                      </td>
-                    </tr>
-                  ) : (
-                    <tr>
-                      <td colSpan={2} className="px-3 py-3 text-center text-amber-400 font-bold uppercase text-[8px] italic print:text-[10px] print:py-6">
-                        No skill club points recorded
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+              </tbody>
+              {aggregatedMarks.length > 0 && (
+                <tfoot>
+                  <tr className="bg-slate-50 border-t-2 border-slate-300 font-black text-slate-900 text-[9px] print:text-[11px]">
+                    <td className="px-3 py-1.5 uppercase print:py-3 print:px-4">Academic Aggregate</td>
+                    <td className="px-2 py-1.5 text-right text-slate-600 print:py-3 print:px-4">
+                      {academicTotalScore}/{academicTotalMax}
+                      {academicHasAbsent && <span className="ml-1 text-[7px] text-rose-500 font-bold">(Inc. Ab)</span>}
+                    </td>
+                    <td className="px-2 py-1.5 text-right text-blue-900 print:py-3 print:px-4">{academicTotalCCE.toFixed(1)}/{academicMaxCCE}</td>
+                    <td className="px-3 py-1.5 text-right text-blue-900 print:py-3 print:px-4">{overallAcademicGrade?.label || '-'}</td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+            
+            {/* NEW: Skill Club Subsection */}
+            <div className="bg-amber-50 border-t border-slate-200 px-3 py-1.5 flex items-center gap-2 print:py-3 print:px-4">
+              <Award className="w-3.5 h-3.5 text-amber-600 print:w-5 print:h-5" />
+              <span className="text-[9px] font-black uppercase tracking-wider text-amber-800 print:text-[11px]">Extra-Curricular: Skill Clubs</span>
             </div>
-
+            <table className="w-full text-left border-collapse text-[10px] bg-amber-50/30 print:text-[12px]">
+              <tbody className="divide-y divide-amber-100/50">
+                {studentClubMarks.length > 0 ? (
+                  <tr>
+                    <td className="px-3 py-1.5 font-bold text-amber-900 print:py-3 print:px-4">Total Skill Club Points Earned</td>
+                    <td className="px-3 py-1.5 text-right font-black text-amber-700 print:py-3 print:px-4">
+                      {totalClubScore} pts
+                    </td>
+                  </tr>
+                ) : (
+                  <tr>
+                    <td colSpan={2} className="px-3 py-3 text-center text-amber-400 font-bold uppercase text-[8px] italic print:text-[10px] print:py-6">
+                      No skill club points recorded
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
-        )}
+
+        </div>
 
         {/* 4. Grade Scale Guide (Compact 1-liner) */}
         <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 mb-4 print:mb-8 print:py-3 print:px-6 flex items-center justify-between text-[8px] text-slate-600 font-semibold print:text-[10px]">
@@ -779,6 +622,7 @@ export default function ReportCard() {
         </div>
 
       </div>
+          </>
         )}
       </Layout>
     </div>

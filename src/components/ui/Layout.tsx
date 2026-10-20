@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../../lib/store';
-import { LogOut, LayoutDashboard, Settings, FileText, CheckSquare, ChevronDown, Download, Menu, X, Smartphone, Sparkles, Cloud, CloudOff, RefreshCw, Users, BookOpen, Printer, History, HelpCircle, Play, ChevronRight, GraduationCap, Trophy, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { LogOut, LayoutDashboard, Settings, FileText, CheckSquare, ChevronDown, Download, Menu, X, Smartphone, Sparkles, Cloud, CloudOff, RefreshCw, Users, BookOpen, Printer, History, HelpCircle, Play, ChevronRight, GraduationCap, Trophy, ShieldCheck } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { InstallModal } from './InstallModal';
 import { motion, AnimatePresence } from 'motion/react';
@@ -55,22 +55,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const NavItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: string }) => {
     const fullPath = location.pathname + location.search;
+    const isActive = fullPath === to || (to === '/admin' && fullPath.startsWith('/admin?')) || (to === '/teacher' && fullPath.startsWith('/teacher')) || (to === '/student' && fullPath.startsWith('/student'));
     
-    // Check active path accurately
-    let isActuallyActive = false;
-    if (to.includes('?')) {
-      isActuallyActive = fullPath === to;
-    } else {
-      if (to === '/admin') {
-        isActuallyActive = fullPath === '/admin' || fullPath === '/admin?tab=overview';
-      } else if (to === '/teacher') {
-        isActuallyActive = fullPath === '/teacher' || fullPath === '/teacher?tab=dashboard';
-      } else if (to === '/student') {
-        isActuallyActive = fullPath === '/student' || fullPath === '/student?tab=overview';
-      } else {
-        isActuallyActive = fullPath === to;
-      }
-    }
+    // For admin, if we are on /admin without a tab, the first item should be active if it matches the default
+    const isActuallyActive = isActive || (to === '/admin?tab=users' && fullPath === '/admin');
 
     return (
       <button 
@@ -78,13 +66,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
           navigate(to);
           setIsSidebarOpen(false);
         }} 
-        className={`group w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm transition-all mb-1 ${isActuallyActive ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
+        className={`group w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm transition-all mb-1 ${isActuallyActive ? 'bg-amber-500 text-slate-900 shadow-lg shadow-amber-500/20' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
       >
         <div className="flex items-center">
-          <Icon className={`w-5 h-5 mr-3 transition-transform group-hover:scale-110 ${isActuallyActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-700'}`} />
+          <Icon className={`w-5 h-5 mr-3 transition-transform group-hover:scale-110 ${isActuallyActive ? 'text-slate-900' : 'text-slate-500'}`} />
           {label}
         </div>
-        {isActuallyActive && <motion.div layoutId="nav-indicator"><ChevronRight className="w-4 h-4 opacity-75" /></motion.div>}
+        {isActuallyActive && <motion.div layoutId="nav-indicator"><ChevronRight className="w-4 h-4 opacity-50" /></motion.div>}
       </button>
     );
   };
@@ -107,23 +95,23 @@ export function Layout({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Sidebar */}
-      <aside className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-72 bg-white border-r border-slate-200 flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 print:hidden ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="p-6 border-b border-slate-100">
+      <aside className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-72 bg-slate-900 text-white flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 print:hidden ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="p-6 border-b border-slate-800">
           <div className="flex items-center gap-3">
             {settings?.logoUrl ? (
-              <img src={settings.logoUrl} alt="Logo" className="w-10 h-10 rounded object-cover border border-slate-100" />
+              <img src={settings.logoUrl} alt="Logo" className="w-10 h-10 rounded object-cover bg-white p-0.5" />
             ) : (
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center font-black text-white text-lg shadow-sm">
+              <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-amber-600 rounded-lg flex items-center justify-center font-black text-slate-900 text-lg shadow-sm">
                 {settings?.name ? settings.name.charAt(0).toUpperCase() : 'G'}
               </div>
             )}
             <div className="flex-1 overflow-hidden">
-              <h1 className="text-slate-900 font-black leading-tight tracking-tight text-lg truncate" title={settings?.name || "GRAND CAMPUS"}>
+              <h1 className="text-white font-black leading-tight tracking-tight text-lg truncate" title={settings?.name || "GRAND CAMPUS"}>
                 {settings?.name ? settings.name.toUpperCase() : "GRAND CAMPUS"}
               </h1>
-              <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold leading-none mt-1">Assurance Portal</p>
+              <p className="text-[10px] uppercase tracking-widest text-amber-400 font-bold leading-none mt-1">Assurance Portal</p>
             </div>
-            <button className="lg:hidden text-slate-400 hover:text-slate-900" onClick={() => setIsSidebarOpen(false)}>
+            <button className="lg:hidden text-slate-400 hover:text-white" onClick={() => setIsSidebarOpen(false)}>
               <X className="w-6 h-6" />
             </button>
           </div>
@@ -136,7 +124,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               
               {currentUser.role === 'admin' && (
                 <>
-                  <div className="pt-4 pb-2 px-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Management</div>
+                  <div className="pt-4 pb-2 px-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Management</div>
                   <NavItem to="/admin?tab=users" icon={Users} label="User Directory" />
                   <NavItem to="/admin?tab=assessments" icon={CheckSquare} label="Assessment Setup" />
                   <NavItem to="/admin?tab=cce" icon={BookOpen} label="CCE Marks Entry" />
@@ -144,7 +132,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <NavItem to="/admin?tab=reports" icon={Printer} label="Class Reports" />
                   <NavItem to="/admin?tab=mentors" icon={GraduationCap} label="Mentor Assignment" />
                   
-                  <div className="pt-4 pb-2 px-4 text-[10px] font-black uppercase tracking-widest text-slate-400">System</div>
+                  <div className="pt-4 pb-2 px-4 text-[10px] font-black uppercase tracking-widest text-slate-500">System</div>
                   <NavItem to="/admin?tab=logs" icon={History} label="Assessment Logs" />
                   <NavItem to="/admin?tab=settings" icon={Settings} label="Campus Settings" />
                   <NavItem to="/admin?tab=help" icon={HelpCircle} label="Help & Tutorial" />
@@ -152,29 +140,28 @@ export function Layout({ children }: { children: React.ReactNode }) {
               )}
               {currentUser.role === 'teacher' && (
                 <>
-                  <div className="pt-4 pb-2 px-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Mentorship & CCE</div>
+                  <div className="pt-4 pb-2 px-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Mentorship</div>
+                  <NavItem to="/teacher?tab=assessments" icon={CheckSquare} label="Assessment Grid" />
                   <NavItem to="/teacher?tab=cce" icon={BookOpen} label="CCE Marks Entry" />
-                  <NavItem to="/teacher?tab=cce-status" icon={CheckCircle2} label="CCE Status" />
-                  <NavItem to="/teacher?tab=assessments" icon={CheckSquare} label="Mentee Assessments" />
-                  <NavItem to="/teacher?tab=activities" icon={Trophy} label="Activity Centre" />
+                  <NavItem to="/teacher?tab=activities" icon={Trophy} label="Activity Center" />
                   
-                  <div className="pt-4 pb-2 px-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Resources</div>
+                  <div className="pt-4 pb-2 px-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Resources</div>
                   <NavItem to="/teacher?tab=help" icon={HelpCircle} label="Help & FAQ" />
                 </>
               )}
               {currentUser.role === 'student' && (
                 <>
-                  <div className="pt-4 pb-2 px-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Learning</div>
+                  <div className="pt-4 pb-2 px-4 text-[10px] font-black uppercase tracking-widest text-slate-500">Learning</div>
                   <NavItem to="/student?tab=report" icon={FileText} label="My Report Card" />
                   <NavItem to="/student?tab=spiritual" icon={Sparkles} label="Self-Assessment" />
                 </>
               )}
 
               {originalAdminId && (
-                <div className="mt-6 pt-6 border-t border-slate-100">
+                <div className="mt-6 pt-6 border-t border-slate-800">
                   <button 
                     onClick={handleReturnToAdmin}
-                    className="w-full flex items-center px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-900 rounded-xl font-black text-sm transition-all"
+                    className="w-full flex items-center px-4 py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl font-black text-sm transition-all shadow-lg shadow-amber-500/20"
                   >
                     <ShieldCheck className="w-5 h-5 mr-3" />
                     Return to Admin
@@ -188,22 +175,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Bottom Install Card & Profile */}
-        <div className="p-4 border-t border-slate-100 bg-white space-y-3">
+        <div className="p-4 border-t border-slate-800 bg-slate-900/50 space-y-3">
           {/* Always Visible Install Button */}
           <button 
             onClick={handleInstallClick}
-            className="w-full flex items-center justify-between px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-900 rounded-xl text-xs font-bold transition-all border border-slate-200 group"
+            className="w-full flex items-center justify-between px-3.5 py-2.5 bg-gradient-to-r from-amber-500/15 via-amber-400/10 to-transparent hover:from-amber-500/25 hover:via-amber-400/20 text-amber-400 rounded-xl text-xs font-bold transition-all border border-amber-500/30 group"
           >
             <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center text-blue-700 group-hover:scale-110 transition-transform">
+              <div className="w-7 h-7 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform">
                 <Download className="w-3.5 h-3.5" />
               </div>
               <div className="text-left">
-                <p className="text-xs font-bold text-slate-900 leading-none">Install Portal App</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Phone, Tablet & PC</p>
+                <p className="text-xs font-bold text-white leading-none">Install Portal App</p>
+                <p className="text-[10px] text-amber-400/80 mt-0.5">Phone, Tablet & PC</p>
               </div>
             </div>
-            <span className="text-[9px] uppercase tracking-wider font-extrabold bg-blue-600 text-white px-1.5 py-0.5 rounded">
+            <span className="text-[9px] uppercase tracking-wider font-extrabold bg-amber-500 text-slate-950 px-1.5 py-0.5 rounded">
               PWA
             </span>
           </button>
@@ -214,9 +201,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 forceCloudRefresh();
               }
             }}
-            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl text-xs font-bold transition-all"
+            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-slate-400 hover:text-white hover:bg-slate-800/50 rounded-xl text-xs font-bold transition-all"
           >
-            <div className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center">
               <RefreshCw className="w-3.5 h-3.5" />
             </div>
             Force Cloud Refresh
@@ -237,7 +224,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               {settings?.logoUrl ? (
                 <img src={settings.logoUrl} alt="Logo" className="w-8 h-8 rounded object-cover border border-slate-100" />
               ) : (
-                <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center font-black text-white text-xs">
+                <div className="w-8 h-8 bg-gradient-to-br from-slate-800 to-slate-900 rounded flex items-center justify-center font-bold text-amber-400 text-xs">
                   {settings?.name ? settings.name.charAt(0).toUpperCase() : 'G'}
                 </div>
               )}
